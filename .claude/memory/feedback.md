@@ -28,9 +28,11 @@ All three must pass — no exceptions. `make format` first to avoid lint failing
 **Why:** User preference — keep commit messages clean.
 **How to apply:** Never append Co-Authored-By lines to any git commit message.
 
-**Multiple short commits over one big commit.**
-One-liner commit messages, one logical unit per commit.
-**Why:** User preference — easier to review and bisect.
+**Multiple short commits over one big commit. Use Conventional Commits format.**
+Format: `type(scope): short description` — e.g. `feat(agents): add cloudflare bypass`.
+Types: feat, fix, docs, chore, refactor, test, ci. Never Co-Authored-By.
+**Why:** User preference — easier to review and bisect; commitlint compatible.
+**How to apply:** Every commit must follow this format. No exceptions.
 
 **Project-level memory lives in `.claude/memory/` (committed to git).**
 Not in `~/.claude/` — the project is worked on from multiple computers.
