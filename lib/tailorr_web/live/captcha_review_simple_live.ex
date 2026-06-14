@@ -13,7 +13,8 @@ defmodule TailorrWeb.CaptchaReviewSimpleLive do
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
-      FileStorage.init()  # Asegurar que existen los directorios
+      # Asegurar que existen los directorios
+      FileStorage.init()
 
       trackers = FileStorage.list_trackers()
       selected_tracker = List.first(trackers)
@@ -61,10 +62,10 @@ defmodule TailorrWeb.CaptchaReviewSimpleLive do
     tracker = socket.assigns.selected_tracker || "unknown"
 
     case FileStorage.classify(tracker, filename,
-      solution: solution,
-      category: category,
-      notes: notes
-    ) do
+           solution: solution,
+           category: category,
+           notes: notes
+         ) do
       {:ok, _path} ->
         socket =
           socket
@@ -278,7 +279,11 @@ defmodule TailorrWeb.CaptchaReviewSimpleLive do
 
   defp tracker_badge(stats, tracker) do
     tracker_stats = Map.get(stats.by_tracker || %{}, tracker, %{})
-    total = (tracker_stats[:success] || 0) + (tracker_stats[:failed] || 0) + (tracker_stats[:classified] || 0)
+
+    total =
+      (tracker_stats[:success] || 0) + (tracker_stats[:failed] || 0) +
+        (tracker_stats[:classified] || 0)
+
     if total > 0, do: "(#{total})", else: ""
   end
 

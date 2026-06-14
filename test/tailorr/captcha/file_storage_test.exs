@@ -202,10 +202,11 @@ defmodule Tailorr.Captcha.FileStorageTest do
 
       export_dir = Path.join(@test_dir, "export_test")
 
-      {:ok, count} = FileStorage.export_training_data(
-        output_dir: export_dir,
-        tracker: @test_tracker
-      )
+      {:ok, count} =
+        FileStorage.export_training_data(
+          output_dir: export_dir,
+          tracker: @test_tracker
+        )
 
       assert count == 2
 
@@ -274,7 +275,8 @@ defmodule Tailorr.Captcha.FileStorageTest do
 
   defp build_captcha_data do
     # Imagen PNG válida de 1x1 pixel transparente
-    base64_png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+    base64_png =
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 
     %{
       image: "data:image/png;base64,#{base64_png}",

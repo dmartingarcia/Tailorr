@@ -110,9 +110,7 @@ defmodule Tailorr.Captcha.SmartSolver do
           Logger.info("✅ ML confident (#{Float.round(confidence * 100, 1)}%): #{prediction}")
           {:ok, prediction, Map.merge(metadata, %{solver: :ml, confidence: confidence})}
         else
-          Logger.info(
-            "⚠️  ML uncertain (#{Float.round(confidence * 100, 1)}%), asking user..."
-          )
+          Logger.info("⚠️  ML uncertain (#{Float.round(confidence * 100, 1)}%), asking user...")
 
           # ML no está seguro, preguntar a usuario
           case solve_with_user(captcha_data, fallback) do
@@ -135,7 +133,7 @@ defmodule Tailorr.Captcha.SmartSolver do
                  ml_was_correct: success
                }}
 
-            {:error, _} = error ->
+            {:error, _} ->
               # Usuario no pudo/quiso responder, usar predicción de ML
               Logger.warning("User failed, falling back to ML prediction")
               {:ok, prediction, Map.merge(metadata, %{solver: :ml, fallback: true})}
@@ -241,21 +239,40 @@ defmodule Tailorr.Captcha.SmartSolver do
           # ML falló (usuario corrigió)
           ml_was_correct == false ->
             # Guardar el fallo de ML
-            FileStorage.save_failure(captcha_data, tracker, Map.put(file_metadata, :ml_failed, true))
+            FileStorage.save_failure(
+              captcha_data,
+              tracker,
+              Map.put(file_metadata, :ml_failed, true)
+            )
+
             # Y guardar la solución correcta del usuario
-            FileStorage.save_success(captcha_data, solution, tracker, Map.put(file_metadata, :source, :user))
+            FileStorage.save_success(
+              captcha_data,
+              solution,
+              tracker,
+              Map.put(file_metadata, :source, :user)
+            )
 
           # Solución vino del usuario directamente (alta calidad)
           solver in [:telegram, :manual] ->
-            FileStorage.save_success(captcha_data, solution, tracker, Map.put(file_metadata, :high_quality, true))
+            FileStorage.save_success(
+              captcha_data,
+              solution,
+              tracker,
+              Map.put(file_metadata, :high_quality, true)
+            )
 
           # ML dio solución sin verificar
-          solver == :ml and ml_confidence && ml_confidence >= 0.9 ->
+          (solver == :ml and ml_confidence) && ml_confidence >= 0.9 ->
             FileStorage.save_success(captcha_data, solution, tracker, file_metadata)
 
           # ML con baja confianza, guardar como pendiente
           solver == :ml ->
-            FileStorage.save_pending(captcha_data, tracker, Map.put(file_metadata, :needs_verification, true))
+            FileStorage.save_pending(
+              captcha_data,
+              tracker,
+              Map.put(file_metadata, :needs_verification, true)
+            )
 
           true ->
             :ok
@@ -300,5 +317,6 @@ defmodule Tailorr.Captcha.SmartSolver do
       _ -> "unknown"
     end
   end
+
   defp extract_domain(_), do: "unknown"
 end

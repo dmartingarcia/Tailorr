@@ -47,11 +47,10 @@ defmodule Tailorr.ML.CaptchaTrainer do
 
   require Logger
 
-  alias Nx.Defn
-
   # Character set for CAPTCHAs (alphanumeric)
   @charset String.graphemes("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-  @num_classes length(@charset) + 1  # +1 for blank/CTC token
+  # +1 for blank/CTC token
+  @num_classes length(@charset) + 1
   @max_length 8
 
   @doc """
@@ -121,10 +120,11 @@ defmodule Tailorr.ML.CaptchaTrainer do
     # Reshape for RNN: (batch, features, time_steps)
     |> Axon.flatten()
     |> Axon.dense(256, activation: :relu)
-    |> Axon.reshape({nil, @max_length, 32})  # Split into time steps
+    # Split into time steps
+    |> Axon.reshape({nil, @max_length, 32})
     # RNN sequence processing
-    |> Axon.lstm(128, return_sequences: true)
-    |> Axon.lstm(64, return_sequences: true)
+    |> Axon.gru(128, unroll: true)
+    |> Axon.gru(64, unroll: true)
     # Character prediction per position
     |> Axon.dense(@num_classes, activation: :softmax)
   end
@@ -174,8 +174,8 @@ defmodule Tailorr.ML.CaptchaTrainer do
     # |> Image.resize({64, 256})
     # |> Nx.divide(255.0)  # Normalize
 
-    # Placeholder for now
-    Nx.random_uniform({1, 64, 256})
+    # Placeholder: return a zero tensor until StbImage is available
+    Nx.broadcast(0.0, {1, 64, 256})
   end
 
   @doc """
@@ -212,7 +212,7 @@ defmodule Tailorr.ML.CaptchaTrainer do
   """
   def train_loop(model, train_data, val_data, epochs, batch_size, learning_rate) do
     # Initialize optimizer
-    optimizer = Axon.Optimizers.adam(learning_rate)
+    optimizer = Polaris.Optimizers.adam(learning_rate: learning_rate)
 
     # Training state
     {init_fn, step_fn} = Axon.Loop.trainer(model, :categorical_cross_entropy, optimizer)
@@ -306,7 +306,8 @@ defmodule Tailorr.ML.CaptchaTrainer do
     %{model: model, state: state} = model_data
 
     image = preprocess_image(image_path)
-    image_batch = Nx.new_axis(image, 0)  # Add batch dimension
+    # Add batch dimension
+    image_batch = Nx.new_axis(image, 0)
 
     output = Axon.predict(model, state, image_batch)
 

@@ -37,7 +37,7 @@ defmodule Tailorr.Captcha.Solvers.TelegramTest do
       # Cleanup
       Application.delete_env(:tailorr, :telegram_captcha)
 
-      assert match?({:ok, _} | {:error, _}, result)
+      assert match?({:ok, _}, result) or match?({:error, _}, result)
       refute match?({:error, :missing_bot_token}, result)
       refute match?({:error, :missing_chat_id}, result)
     end
@@ -51,15 +51,16 @@ defmodule Tailorr.Captcha.Solvers.TelegramTest do
       captcha = %{image: "test.png", image_type: :url}
 
       # Override with options
-      result = Telegram.solve(captcha,
-        bot_token: "override_token",
-        chat_id: "override_chat"
-      )
+      result =
+        Telegram.solve(captcha,
+          bot_token: "override_token",
+          chat_id: "override_chat"
+        )
 
       Application.delete_env(:tailorr, :telegram_captcha)
 
       # Config was valid, error will be from API call
-      assert match?({:ok, _} | {:error, _}, result)
+      assert match?({:ok, _}, result) or match?({:error, _}, result)
     end
   end
 
@@ -71,13 +72,14 @@ defmodule Tailorr.Captcha.Solvers.TelegramTest do
         message: "Test message"
       }
 
-      result = Telegram.solve(captcha,
-        bot_token: "test",
-        chat_id: "test"
-      )
+      result =
+        Telegram.solve(captcha,
+          bot_token: "test",
+          chat_id: "test"
+        )
 
       # Will fail but shouldn't crash
-      assert match?({:ok, _} | {:error, _}, result)
+      assert match?({:ok, _}, result) or match?({:error, _}, result)
     end
 
     test "accepts base64 images" do
@@ -87,12 +89,13 @@ defmodule Tailorr.Captcha.Solvers.TelegramTest do
         message: "Test"
       }
 
-      result = Telegram.solve(captcha,
-        bot_token: "test",
-        chat_id: "test"
-      )
+      result =
+        Telegram.solve(captcha,
+          bot_token: "test",
+          chat_id: "test"
+        )
 
-      assert match?({:ok, _} | {:error, _}, result)
+      assert match?({:ok, _}, result) or match?({:error, _}, result)
     end
   end
 
@@ -101,25 +104,27 @@ defmodule Tailorr.Captcha.Solvers.TelegramTest do
       captcha = %{image: "test.png", image_type: :url}
 
       # Should use custom timeout
-      result = Telegram.solve(captcha,
-        bot_token: "test",
-        chat_id: "test",
-        timeout: 5_000
-      )
+      result =
+        Telegram.solve(captcha,
+          bot_token: "test",
+          chat_id: "test",
+          timeout: 5_000
+        )
 
-      assert match?({:ok, _} | {:error, _}, result)
+      assert match?({:ok, _}, result) or match?({:error, _}, result)
     end
 
     test "respects poll_interval option" do
       captcha = %{image: "test.png", image_type: :url}
 
-      result = Telegram.solve(captcha,
-        bot_token: "test",
-        chat_id: "test",
-        poll_interval: 1_000
-      )
+      result =
+        Telegram.solve(captcha,
+          bot_token: "test",
+          chat_id: "test",
+          poll_interval: 1_000
+        )
 
-      assert match?({:ok, _} | {:error, _}, result)
+      assert match?({:ok, _}, result) or match?({:error, _}, result)
     end
   end
 

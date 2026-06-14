@@ -40,13 +40,14 @@ defmodule Tailorr.Captcha.Solvers.OCRTest do
       }
 
       # No debería crashear con opciones válidas
-      result = OCR.solve(captcha,
-        whitelist: "0123456789",
-        psm: 7,
-        preprocessing: false
-      )
+      result =
+        OCR.solve(captcha,
+          whitelist: "0123456789",
+          psm: 7,
+          preprocessing: false
+        )
 
-      assert match?({:ok, _} | {:error, _}, result)
+      assert match?({:ok, _}, result) or match?({:error, _}, result)
     end
   end
 
@@ -60,7 +61,7 @@ defmodule Tailorr.Captcha.Solvers.OCRTest do
       # Default tesseract_cmd debería ser "tesseract"
       result = OCR.solve(captcha)
 
-      assert match?({:ok, _} | {:error, _}, result)
+      assert match?({:ok, _}, result) or match?({:error, _}, result)
     end
   end
 end

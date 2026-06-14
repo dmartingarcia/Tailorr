@@ -21,7 +21,9 @@ defmodule Tailorr.Captcha.Solvers.MockTest do
 
     test "returns custom error reason" do
       captcha = %{image: "test.png", image_type: :url}
-      assert {:error, :custom_failure} = Mock.solve(captcha, error: true, error_reason: :custom_failure)
+
+      assert {:error, :custom_failure} =
+               Mock.solve(captcha, error: true, error_reason: :custom_failure)
     end
 
     test "respects delay option" do
@@ -38,6 +40,7 @@ defmodule Tailorr.Captcha.Solvers.MockTest do
         image_type: :base64,
         message: "Enter code"
       }
+
       assert {:ok, "MOCK123"} = Mock.solve(captcha)
     end
   end

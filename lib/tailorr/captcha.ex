@@ -125,7 +125,6 @@ defmodule Tailorr.Captcha do
     end
   end
 
-
   # --- 2Captcha Service ---
 
   defp solve_twocaptcha(_captcha_data, _opts) do

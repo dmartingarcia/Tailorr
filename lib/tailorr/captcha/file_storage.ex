@@ -36,7 +36,7 @@ defmodule Tailorr.Captcha.FileStorage do
 
   require Logger
 
-  @base_dir "priv/ml/captcha_learning"
+  @default_base_dir "priv/ml/captcha_learning"
   @dirs %{
     success: "success",
     failed: "failed",
@@ -60,7 +60,7 @@ defmodule Tailorr.Captcha.FileStorage do
   end
 
   defp init_tracker_dirs(tracker) do
-    base = Path.join(@base_dir, sanitize_tracker(tracker))
+    base = Path.join(base_dir(), sanitize_tracker(tracker))
 
     Enum.each(@dirs, fn {_key, dir} ->
       Path.join(base, dir) |> File.mkdir_p!()
@@ -68,8 +68,14 @@ defmodule Tailorr.Captcha.FileStorage do
 
     # Subdirectorios de clasificación
     categories = [
-      "distorted", "noise", "low_contrast", "multiple_fonts",
-      "overlapping", "background_pattern", "unusual_chars", "other"
+      "distorted",
+      "noise",
+      "low_contrast",
+      "multiple_fonts",
+      "overlapping",
+      "background_pattern",
+      "unusual_chars",
+      "other"
     ]
 
     Enum.each(categories, fn category ->
@@ -81,10 +87,10 @@ defmodule Tailorr.Captcha.FileStorage do
   Lista todos los trackers que tienen datos.
   """
   def list_trackers do
-    if File.exists?(@base_dir) do
-      File.ls!(@base_dir)
+    if File.exists?(base_dir()) do
+      File.ls!(base_dir())
       |> Enum.filter(fn name ->
-        path = Path.join(@base_dir, name)
+        path = Path.join(base_dir(), name)
         File.dir?(path) && name != "export"
       end)
     else
@@ -104,7 +110,7 @@ defmodule Tailorr.Captcha.FileStorage do
     safe_solution = sanitize_filename(solution)
     filename = "#{uuid}_#{safe_solution}.jpg"
 
-    tracker_base = Path.join(@base_dir, sanitize_tracker(tracker))
+    tracker_base = Path.join(base_dir(), sanitize_tracker(tracker))
     filepath = Path.join([tracker_base, @dirs.success, filename])
 
     # Guardar imagen
@@ -113,6 +119,7 @@ defmodule Tailorr.Captcha.FileStorage do
 
     # Guardar metadata con tracker
     metadata_with_tracker = Map.put(metadata, :tracker, tracker)
+
     if map_size(metadata_with_tracker) > 0 do
       save_metadata(filepath, metadata_with_tracker)
     end
@@ -130,7 +137,7 @@ defmodule Tailorr.Captcha.FileStorage do
     uuid = generate_uuid()
     filename = "#{uuid}.jpg"
 
-    tracker_base = Path.join(@base_dir, sanitize_tracker(tracker))
+    tracker_base = Path.join(base_dir(), sanitize_tracker(tracker))
     filepath = Path.join([tracker_base, @dirs.failed, filename])
 
     # Guardar imagen
@@ -142,6 +149,7 @@ defmodule Tailorr.Captcha.FileStorage do
       metadata
       |> Map.put(:status, "failed")
       |> Map.put(:tracker, tracker)
+
     save_metadata(filepath, metadata_with_tracker)
 
     Logger.info("❌ [#{tracker}] Saved failure: #{filename}")
@@ -157,7 +165,7 @@ defmodule Tailorr.Captcha.FileStorage do
     uuid = generate_uuid()
     filename = "#{uuid}.jpg"
 
-    tracker_base = Path.join(@base_dir, sanitize_tracker(tracker))
+    tracker_base = Path.join(base_dir(), sanitize_tracker(tracker))
     filepath = Path.join([tracker_base, @dirs.pending, filename])
 
     # Guardar imagen
@@ -169,6 +177,7 @@ defmodule Tailorr.Captcha.FileStorage do
       metadata
       |> Map.put(:status, "pending")
       |> Map.put(:tracker, tracker)
+
     save_metadata(filepath, metadata_with_tracker)
 
     Logger.info("⏳ [#{tracker}] Saved pending: #{filename}")
@@ -195,7 +204,7 @@ defmodule Tailorr.Captcha.FileStorage do
       new_filename = "#{uuid}_#{safe_solution}.jpg"
 
       # Mover a carpeta clasificada
-      tracker_base = Path.join(@base_dir, sanitize_tracker(tracker))
+      tracker_base = Path.join(base_dir(), sanitize_tracker(tracker))
       dest_path = Path.join([tracker_base, "classified", category, new_filename])
       File.mkdir_p!(Path.dirname(dest_path))
       File.rename!(source_path, dest_path)
@@ -230,7 +239,7 @@ defmodule Tailorr.Captcha.FileStorage do
   end
 
   defp list_failed_for_tracker(tracker) do
-    tracker_base = Path.join(@base_dir, sanitize_tracker(tracker))
+    tracker_base = Path.join(base_dir(), sanitize_tracker(tracker))
     failed_dir = Path.join(tracker_base, @dirs.failed)
 
     if File.exists?(failed_dir) do
@@ -268,7 +277,7 @@ defmodule Tailorr.Captcha.FileStorage do
   end
 
   defp list_success_for_tracker(tracker) do
-    tracker_base = Path.join(@base_dir, sanitize_tracker(tracker))
+    tracker_base = Path.join(base_dir(), sanitize_tracker(tracker))
     success_dir = Path.join(tracker_base, @dirs.success)
 
     if File.exists?(success_dir) do
@@ -308,7 +317,7 @@ defmodule Tailorr.Captcha.FileStorage do
   end
 
   defp list_classified_for_tracker(tracker, category) do
-    tracker_base = Path.join(@base_dir, sanitize_tracker(tracker))
+    tracker_base = Path.join(base_dir(), sanitize_tracker(tracker))
     classified_dir = Path.join(tracker_base, "classified")
 
     categories =
@@ -361,7 +370,7 @@ defmodule Tailorr.Captcha.FileStorage do
   Si no, exporta todos los trackers en subdirectorios.
   """
   def export_training_data(opts \\ []) do
-    output_dir = Keyword.get(opts, :output_dir, Path.join(@base_dir, "export"))
+    output_dir = Keyword.get(opts, :output_dir, Path.join(base_dir(), "export"))
     tracker = Keyword.get(opts, :tracker)
 
     if tracker do
@@ -468,6 +477,10 @@ defmodule Tailorr.Captcha.FileStorage do
 
   # Private functions
 
+  defp base_dir do
+    Application.get_env(:tailorr, :captcha_learning_dir, @default_base_dir)
+  end
+
   defp generate_uuid do
     :crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)
   end
@@ -475,7 +488,8 @@ defmodule Tailorr.Captcha.FileStorage do
   defp sanitize_filename(str) do
     str
     |> String.replace(~r/[^\w\d\-]/, "_")
-    |> String.slice(0, 50)  # Limitar longitud
+    # Limitar longitud
+    |> String.slice(0, 50)
   end
 
   defp sanitize_tracker(tracker) do
@@ -528,7 +542,7 @@ defmodule Tailorr.Captcha.FileStorage do
   end
 
   defp find_file(tracker, filename) when is_binary(tracker) and is_binary(filename) do
-    tracker_base = Path.join(@base_dir, sanitize_tracker(tracker))
+    tracker_base = Path.join(base_dir(), sanitize_tracker(tracker))
 
     search_paths = [
       Path.join([tracker_base, @dirs.failed, filename]),
@@ -560,9 +574,7 @@ defmodule Tailorr.Captcha.FileStorage do
   defp file_mtime(path) do
     case File.stat(path) do
       {:ok, %{mtime: mtime}} ->
-        mtime
-        |> :calendar.gregorian_seconds_to_datetime()
-        |> DateTime.from_naive!("Etc/UTC")
+        mtime |> NaiveDateTime.from_erl!() |> DateTime.from_naive!("Etc/UTC")
 
       _ ->
         DateTime.utc_now()

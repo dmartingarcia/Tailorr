@@ -55,3 +55,7 @@ tmp/
 *.db
 *.db-shm
 *.db-wal
+
+# Captcha ML training data (runtime, not source)
+priv/ml/captcha_learning/
+priv/ml/captcha_learning_test/

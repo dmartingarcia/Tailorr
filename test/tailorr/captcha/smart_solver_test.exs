@@ -30,13 +30,14 @@ defmodule Tailorr.Captcha.SmartSolverTest do
       captcha = build_captcha()
 
       # Mock ML solver to return high confidence
-      result = SmartSolver.solve(captcha,
-        strategy: :ml_only,
-        save_learning: false
-      )
+      result =
+        SmartSolver.solve(captcha,
+          strategy: :ml_only,
+          save_learning: false
+        )
 
       # Debería intentar ML
-      assert match?({:ok, _, _} | {:error, _}, result)
+      assert match?({:ok, _, _}, result) or match?({:error, _}, result)
     end
 
     test "guarda aciertos automáticamente" do
@@ -59,11 +60,12 @@ defmodule Tailorr.Captcha.SmartSolverTest do
     test "va directo a usuario sin intentar ML" do
       captcha = build_captcha()
 
-      result = SmartSolver.solve(captcha,
-        strategy: :user_only,
-        fallback: :manual,
-        save_learning: false
-      )
+      result =
+        SmartSolver.solve(captcha,
+          strategy: :user_only,
+          fallback: :manual,
+          save_learning: false
+        )
 
       # Debería fallar porque no hay input en tests
       assert {:error, _} = result
@@ -118,21 +120,23 @@ defmodule Tailorr.Captcha.SmartSolverTest do
       {:ok, path} = FileStorage.save_failure(build_captcha(), "test.com")
       filename = Path.basename(path)
 
-      result = SmartSolver.classify(filename,
-        solution: "TEST",
-        category: "other"
-      )
+      result =
+        SmartSolver.classify(filename,
+          solution: "TEST",
+          category: "other"
+        )
 
       # Debería fallar porque classify espera tracker
       # Esto está bien - el test verifica que la función existe
-      assert match?({:ok, _} | {:error, _}, result)
+      assert match?({:ok, _}, result) or match?({:error, _}, result)
     end
   end
 
   # Helpers
 
   defp build_captcha do
-    base64_png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+    base64_png =
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 
     %{
       image: "data:image/png;base64,#{base64_png}",

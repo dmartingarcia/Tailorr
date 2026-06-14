@@ -1,5 +1,6 @@
 defmodule Tailorr.CaptchaTest do
-  use ExUnit.Case, async: false  # async: false because we use IO
+  # async: false because we use IO
+  use ExUnit.Case, async: false
 
   alias Tailorr.Captcha
 
@@ -38,7 +39,7 @@ defmodule Tailorr.CaptchaTest do
       captcha = %{image: "test.png", image_type: :url}
       result = Captcha.solve(captcha, :ml)
       # Will fail but routing works
-      assert match?({:ok, _} | {:error, _}, result)
+      assert match?({:ok, _}, result) or match?({:error, _}, result)
     end
 
     test "routes to telegram backend" do
@@ -78,7 +79,9 @@ defmodule Tailorr.CaptchaTest do
 
     test "mock backend accepts error mode" do
       captcha = %{image: "test.png", image_type: :url}
-      assert {:error, :test_error} = Captcha.solve(captcha, :mock, error: true, error_reason: :test_error)
+
+      assert {:error, :test_error} =
+               Captcha.solve(captcha, :mock, error: true, error_reason: :test_error)
     end
 
     test "mock backend accepts delay" do

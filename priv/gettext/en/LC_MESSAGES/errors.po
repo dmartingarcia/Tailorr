@@ -1,0 +1,23 @@
+msgid ""
+msgstr ""
+
+msgid "Success!"
+msgstr ""
+
+msgid "Error!"
+msgstr ""
+
+msgid "We can't find the internet"
+msgstr ""
+
+msgid "Attempting to reconnect"
+msgstr ""
+
+msgid "Something went wrong!"
+msgstr ""
+
+msgid "Hang in there while we get back on track"
+msgstr ""
+
+msgid "close"
+msgstr ""

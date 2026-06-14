@@ -1,8 +1,9 @@
 services:
   app:
     build:
-      context: ./apps/tailorr
+      context: .
       dockerfile: Dockerfile
+      target: dev
     ports:
       - "4000:4000"
     env_file:
@@ -10,20 +11,37 @@ services:
     environment:
       DATABASE_URL: "ecto://tailorr:tailorr@db/tailorr_dev"
       FLARESOLVERR_URL: "http://flaresolverr:8191"
+      BROWSER_URL: "http://browser:3001"
       MIX_ENV: dev
       PHX_HOST: localhost
     volumes:
-      - ./apps/tailorr:/app
+      - .:/app
       - ./tracker_definitions:/app/tracker_definitions
       - mix_deps:/app/deps
       - mix_build:/app/_build
+      - assets_node_modules:/app/assets/node_modules
     depends_on:
       db:
         condition: service_healthy
       flaresolverr:
         condition: service_started
+      browser:
+        condition: service_started
     networks:
       - tailorr
+
+  browser:
+    build:
+      context: ./services/browser
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+    networks:
+      - tailorr
+    restart: unless-stopped
 
   db:
     image: postgres:18-alpine
@@ -58,6 +76,7 @@ volumes:
   postgres_data:
   mix_deps:
   mix_build:
+  assets_node_modules:
 
 networks:
   tailorr:

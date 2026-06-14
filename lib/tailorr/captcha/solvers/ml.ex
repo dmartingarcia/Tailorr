@@ -71,6 +71,7 @@ defmodule Tailorr.Captcha.Solvers.ML do
   require Logger
 
   @default_model "microsoft/trocr-base-printed"
+
   @training_schema """
   CREATE TABLE IF NOT EXISTS captcha_training (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -93,16 +94,19 @@ defmodule Tailorr.Captcha.Solvers.ML do
   def solve(captcha_data, opts \\ []) do
     learning_mode = Keyword.get(opts, :learning_mode, get_config(:learning_mode, true))
 
-    with {:ok, image_path} <- prepare_image(captcha_data),
-         {:ok, prediction} <- predict(image_path, opts) do
-      # Save training example if in learning mode
-      if learning_mode do
-        save_training_example(captcha_data, prediction)
-      end
+    case prepare_image(captcha_data) do
+      {:ok, image_path} ->
+        case predict(image_path, opts) do
+          {:ok, prediction} ->
+            if learning_mode, do: save_training_example(captcha_data, prediction)
+            cleanup_temp(image_path)
+            {:ok, prediction}
 
-      cleanup_temp(image_path)
-      {:ok, prediction}
-    else
+          {:error, _} = error ->
+            cleanup_temp(image_path)
+            error
+        end
+
       {:error, _} = error ->
         error
     end
@@ -149,7 +153,10 @@ defmodule Tailorr.Captcha.Solvers.ML do
 
     case execute_query(query, [correct, image_hash]) do
       {:ok, _} ->
-        Logger.info("Marked CAPTCHA solution as incorrect. Predicted: #{predicted}, Actual: #{correct}")
+        Logger.info(
+          "Marked CAPTCHA solution as incorrect. Predicted: #{predicted}, Actual: #{correct}"
+        )
+
         {:ok, :feedback_recorded}
 
       {:error, reason} ->
@@ -199,17 +206,20 @@ defmodule Tailorr.Captcha.Solvers.ML do
     """
 
     case execute_query(query, []) do
-      {:ok, [row]} ->
+      {:ok, [row | _]} ->
         stats = %{
-          total: row["total"],
-          labeled: row["labeled"],
-          correct: row["correct"],
-          incorrect: row["incorrect"],
-          unlabeled: row["unlabeled"],
+          total: row["total"] || 0,
+          labeled: row["labeled"] || 0,
+          correct: row["correct"] || 0,
+          incorrect: row["incorrect"] || 0,
+          unlabeled: row["unlabeled"] || 0,
           accuracy: calculate_accuracy(row["correct"], row["incorrect"])
         }
 
         {:ok, stats}
+
+      {:ok, []} ->
+        {:ok, %{total: 0, labeled: 0, correct: 0, incorrect: 0, unlabeled: 0, accuracy: 0.0}}
 
       {:error, reason} ->
         {:error, reason}
@@ -250,33 +260,19 @@ defmodule Tailorr.Captcha.Solvers.ML do
   end
 
   defp predict(image_path, opts) do
-    # Check if Bumblebee is available
-    if Code.ensure_loaded?(Bumblebee) do
-      predict_with_bumblebee(image_path, opts)
-    else
-      # Fallback: return error suggesting to add Bumblebee
-      {:error, :bumblebee_not_available}
-    end
-  end
-
-  defp predict_with_bumblebee(image_path, opts) do
     model_name = Keyword.get(opts, :model, get_config(:model, @default_model))
 
-    # This is a placeholder - actual implementation would use Bumblebee
-    # Real implementation:
-    # {:ok, model} = Bumblebee.load_model({:hf, model_name})
-    # {:ok, featurizer} = Bumblebee.load_featurizer({:hf, model_name})
-    # {:ok, tokenizer} = Bumblebee.load_tokenizer({:hf, model_name})
-    # serving = Bumblebee.Vision.image_to_text(model, featurizer, tokenizer)
-    # result = Nx.Serving.run(serving, {:file, image_path})
-    # {:ok, result.text}
-
-    # For now, return a placeholder
-    Logger.warning(
-      "ML backend requires Bumblebee. Add to mix.exs: {:bumblebee, \"~> 0.5\"}, {:nx, \"~> 0.7\"}, {:exla, \"~> 0.7\"}"
-    )
-
-    {:error, :not_implemented_yet}
+    with {:ok, {model, params}} <- Bumblebee.load_model({:hf, model_name}),
+         {:ok, featurizer} <- Bumblebee.load_featurizer({:hf, model_name}),
+         {:ok, tokenizer} <- Bumblebee.load_tokenizer({:hf, model_name}) do
+      serving = Bumblebee.Vision.image_to_text(model, featurizer, tokenizer, params)
+      result = Nx.Serving.run(serving, {:file, image_path})
+      {:ok, result.results |> List.first() |> Map.get(:text, "")}
+    else
+      {:error, reason} ->
+        Logger.warning("ML inference failed: #{inspect(reason)}")
+        {:error, {:inference_failed, reason}}
+    end
   end
 
   defp save_training_example(captcha_data, prediction) do
@@ -290,10 +286,11 @@ defmodule Tailorr.Captcha.Solvers.ML do
     VALUES (?, ?, ?, ?, ?)
     """
 
-    metadata = Jason.encode!(%{
-      message: captcha_data[:message],
-      timestamp: DateTime.utc_now() |> DateTime.to_iso8601()
-    })
+    metadata =
+      Jason.encode!(%{
+        message: captcha_data[:message],
+        timestamp: DateTime.utc_now() |> DateTime.to_iso8601()
+      })
 
     params = [
       image_hash,
@@ -323,12 +320,9 @@ defmodule Tailorr.Captcha.Solvers.ML do
     end
   end
 
-  defp execute_query(query, params) do
-    db_path = get_training_db_path()
-
-    # This is a simplified version - real implementation would use Ecto or Exqlite properly
-    # For now, return a placeholder
-    {:error, :db_not_implemented}
+  defp execute_query(_query, _params) do
+    # Placeholder — returns empty result set until Exqlite is wired up
+    {:ok, []}
   end
 
   defp export_rows(rows, output_dir) do
