@@ -14,12 +14,9 @@ config :tailorr, :api_keys, []
 config :tailorr, :captcha_backend, :manual
 
 # Telegram CAPTCHA solver configuration (if using :telegram backend)
-# Get bot token from @BotFather on Telegram
-# Get chat_id by messaging your bot and checking:
-# https://api.telegram.org/bot<TOKEN>/getUpdates
-config :tailorr, :telegram_captcha,
-  bot_token: System.get_env("TELEGRAM_BOT_TOKEN"),
-  chat_id: System.get_env("TELEGRAM_CHAT_ID")
+# Get bot token from @BotFather on Telegram.
+# Users register by sending /start to your bot — no TELEGRAM_CHAT_ID needed.
+config :tailorr, :telegram_captcha, bot_token: System.get_env("TELEGRAM_BOT_TOKEN")
 
 # Configure the repository
 config :tailorr, Tailorr.Repo,

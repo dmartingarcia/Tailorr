@@ -16,29 +16,30 @@ defmodule Tailorr.Application do
 
   @impl true
   def start(_type, _args) do
-    children = [
-      # Registry for tracker processes
-      {Registry, keys: :unique, name: Tailorr.Trackers.Registry},
+    children =
+      [
+        # Registry for tracker processes
+        {Registry, keys: :unique, name: Tailorr.Trackers.Registry},
 
-      # PubSub for LiveView and real-time features
-      {Phoenix.PubSub, name: Tailorr.PubSub},
+        # PubSub for LiveView and real-time features
+        {Phoenix.PubSub, name: Tailorr.PubSub},
 
-      # Cache
-      {Cachex, name: :tailorr_cache},
+        # Cache
+        {Cachex, name: :tailorr_cache},
 
-      # Repo (database)
-      Tailorr.Repo,
+        # Repo (database)
+        Tailorr.Repo,
 
-      # Tracker supervisor
-      Tailorr.Trackers.Supervisor,
+        # Tracker supervisor
+        Tailorr.Trackers.Supervisor,
 
-      # Web layer
-      TailorrWeb.Telemetry,
-      TailorrWeb.Endpoint
+        # Web layer
+        TailorrWeb.Telemetry,
+        TailorrWeb.Endpoint
 
-      # TODO: Add Oban when we need background jobs
-      # {Oban, Application.fetch_env!(:tailorr, Oban)}
-    ]
+        # TODO: Add Oban when we need background jobs
+        # {Oban, Application.fetch_env!(:tailorr, Oban)}
+      ] ++ telegram_children()
 
     opts = [strategy: :one_for_one, name: Tailorr.Supervisor]
 
@@ -61,5 +62,17 @@ defmodule Tailorr.Application do
   def config_change(changed, _new, removed) do
     TailorrWeb.Endpoint.config_change(changed, removed)
     :ok
+  end
+
+  defp telegram_children do
+    bot_token =
+      System.get_env("TELEGRAM_BOT_TOKEN") ||
+        Application.get_env(:tailorr, :telegram_captcha, [])[:bot_token]
+
+    if bot_token do
+      [{Tailorr.Captcha.Solvers.Telegram.Bot, [bot_token: bot_token]}]
+    else
+      []
+    end
   end
 end

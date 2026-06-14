@@ -44,8 +44,8 @@ defmodule Tailorr.CaptchaTest do
 
     test "routes to telegram backend" do
       captcha = %{image: "test.png", image_type: :url}
-      # Telegram will fail without config, but routing should work
-      assert {:error, :missing_bot_token} = Captcha.solve(captcha, :telegram)
+      # Telegram will fail without the bot running, but routing should work
+      assert {:error, :telegram_bot_not_running} = Captcha.solve(captcha, :telegram)
     end
 
     test "routes to tesseract backend (alias for ocr)" do

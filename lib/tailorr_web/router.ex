@@ -49,6 +49,7 @@ defmodule TailorrWeb.Router do
     live("/builder", TrackerBuilder.BuilderLive, :index)
     live("/builder/:tracker_id", TrackerBuilder.BuilderLive, :edit)
     live("/test", TrackerTest.TestLive, :index)
+    live("/settings/telegram", Settings.TelegramLive, :index)
   end
 
   # Redirect root to test UI
