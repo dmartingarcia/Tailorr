@@ -37,9 +37,7 @@ defmodule Tailorr.Scraper do
 
   defp extract_result_nodes(document, config) do
     selector = config["result_rows"] || "tr"
-    nodes = Floki.find(document, selector)
-    IO.puts("DEBUG: Found #{length(nodes)} result nodes with selector: #{selector}")
-    nodes
+    Floki.find(document, selector)
   end
 
   defp parse_result(node, config, tracker_id, base_url) do
