@@ -7,12 +7,11 @@ categories:
   - movies
   - tv
 
-enabled: true
-agent: http
+enabled: false
+agent: browser
 base_url: "https://descargamix.net"
-search_path: "/"
-search_params:
-  query_key: "s"
+search_path: "/buscar/{query}"
+wait_for_selector: ".card, .movie-item, .result"
 
 parsing:
   result_rows: ".movie-item, .torrent-item, .result"
@@ -36,6 +35,14 @@ rate_limit:
   delay_between_requests_ms: 2000
 
 notes: |
-  DescargaMix - Cloudflare protected, needs validation
-  Status: HTTP 200 but has Cloudflare (server: cloudflare)
-  All selectors are estimates - need HTML validation
+  DescargaMix - Requires browser automation (JavaScript-rendered results)
+
+  Search URL: https://descargamix.net/buscar/{query}
+  Page loads but results are loaded dynamically via JavaScript
+
+  Needs:
+  - Browser agent with JavaScript execution
+  - Wait for results to load (.card, .movie-item selectors)
+  - Extract detail URLs from rendered DOM
+
+  All selectors need validation once browser agent works
