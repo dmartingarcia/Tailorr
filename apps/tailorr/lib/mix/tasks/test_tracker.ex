@@ -166,6 +166,7 @@ defmodule Mix.Tasks.Tailorr.TestTracker do
       "browser" -> Tailorr.Agents.Browser
       "api" -> Tailorr.Agents.Api
       "auth" -> Tailorr.Agents.Auth
+      "mock" -> Tailorr.Agents.Mock
       _ -> Tailorr.Agents.Http
     end
   end
