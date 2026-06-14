@@ -1,0 +1,17 @@
+commit-msg:
+  commands:
+    commitlint:
+      run: scripts/commitlint.sh {1}
+
+pre-commit:
+  parallel: true
+  commands:
+    format:
+      glob: "*.{ex,exs}"
+      run: mix format --check-formatted {staged_files}
+    lint:
+      glob: "*.{ex,exs}"
+      run: mix credo --strict {staged_files}
+    test:
+      glob: "apps/tailorr/lib/**/*.ex"
+      run: scripts/test-changed.sh {staged_files}

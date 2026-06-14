@@ -11,7 +11,8 @@ GID := $(shell id -g)
         test test-tracker lint shell \
         db-migrate db-reset db-console \
         logs ps \
-        flare-logs flare-restart
+        flare-logs flare-restart \
+        install-hooks
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -19,7 +20,7 @@ help: ## Show this help
 
 # ── Setup & lifecycle ────────────────────────────────────────────────────────
 
-setup: ## First-time setup: pull images, build, create DB and run migrations
+setup: install-hooks ## First-time setup: pull images, build, create DB and run migrations
 	$(COMPOSE) pull
 	$(COMPOSE) build
 	$(COMPOSE) up -d db flaresolverr
@@ -29,6 +30,11 @@ setup: ## First-time setup: pull images, build, create DB and run migrations
 	$(APP) mix ecto.migrate
 	@echo ""
 	@echo "✓ Tailorr is ready. Run 'make dev' to start."
+
+install-hooks: ## Install git hooks via lefthook (requires: brew install lefthook)
+	@which lefthook > /dev/null 2>&1 || (echo "lefthook not found — run: brew install lefthook" && exit 1)
+	lefthook install
+	@echo "✓ Git hooks installed."
 
 dev: ## Start all services with hot reload (foreground)
 	$(COMPOSE) up
