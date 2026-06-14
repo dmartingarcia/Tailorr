@@ -1,0 +1,64 @@
+services:
+  app:
+    build:
+      context: ./apps/tailorr
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: "ecto://tailorr:tailorr@db/tailorr_dev"
+      FLARESOLVERR_URL: "http://flaresolverr:8191"
+      MIX_ENV: dev
+      PHX_HOST: localhost
+    volumes:
+      - ./apps/tailorr:/app
+      - ./tracker_definitions:/app/tracker_definitions
+      - mix_deps:/app/deps
+      - mix_build:/app/_build
+    depends_on:
+      db:
+        condition: service_healthy
+      flaresolverr:
+        condition: service_started
+    networks:
+      - tailorr
+
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: tailorr
+      POSTGRES_PASSWORD: tailorr
+      POSTGRES_DB: tailorr_dev
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tailorr"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tailorr
+
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:v3.5.0
+    environment:
+      LOG_LEVEL: info
+      LOG_HTML: false
+      CAPTCHA_SOLVER: none
+      TZ: UTC
+    ports:
+      - "8191:8191"
+    networks:
+      - tailorr
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  mix_deps:
+  mix_build:
+
+networks:
+  tailorr:
+    driver: bridge
