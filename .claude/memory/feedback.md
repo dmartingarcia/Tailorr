@@ -5,6 +5,18 @@ metadata:
   type: feedback
 ---
 
+**SOLID principles are mandatory for ALL code.**
+User requirement: "TIENES QUE SER SOLID, y aplicar todas las mejores practicas de código posibles"
+**Why:** Code quality, testability, maintainability are critical for this project.
+**How to apply:**
+- SRP: Each module/function has one responsibility
+- OCP: Use behaviours, protocols, slots for extension
+- LSP: All implementations honor their contracts
+- ISP: Narrow, focused public APIs (no fat contexts)
+- DIP: Compile-time dependency injection via `Application.compile_env/3`
+- Always write tests for new features
+- Never compromise on code quality
+
 **Elixir skeleton via command, not manual files.**
 Run `mix phx.new` inside a Docker container — never hand-write mix.exs or the boilerplate.
 **Why:** Avoids drift from what Phoenix generates; keeps the project idiomatic.
