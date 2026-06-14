@@ -1,0 +1,42 @@
+id: wolfmax4k
+name: "WolfMax4K"
+description: "Spanish 4K torrent tracker"
+language: es
+type: public
+categories:
+  - movies
+  - tv
+
+enabled: false
+agent: http
+base_url: "https://wolfmax4k.com"
+search_path: "/"
+search_params:
+  query_key: "s"
+
+parsing:
+  result_rows: ".movie-item, .torrent-item, .result"
+  fields:
+    title: ".title a, h2 a"
+    detail_url: ".title a@href, h2 a@href"
+    quality: ".quality, .calidad"
+    category: ".category, .categoria"
+    size: ".size, .tam"
+    size_format: human
+    seeders: ".seeds"
+    leechers: ".leechers"
+    download_url: null
+    magnet_url: null
+
+cache:
+  ttl_minutes: 20
+
+rate_limit:
+  requests_per_minute: 10
+  delay_between_requests_ms: 2000
+
+notes: |
+  WolfMax4K - Domain unreachable
+  Status: Connection failed (port 443)
+  Need working mirror/domain
+  All selectors are estimates
