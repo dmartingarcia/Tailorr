@@ -10,7 +10,7 @@ defmodule Tailorr.Scraper do
   - Size/date parsing and normalization
   """
 
-  alias Tailorr.{Result, Normalizer}
+  alias Tailorr.{Result, Normalizer, Downloaders}
 
   @doc """
   Parse HTML and extract results according to tracker config.
@@ -36,7 +36,9 @@ defmodule Tailorr.Scraper do
 
   defp extract_result_nodes(document, config) do
     selector = config["result_rows"] || "tr"
-    Floki.find(document, selector)
+    nodes = Floki.find(document, selector)
+    IO.puts("DEBUG: Found #{length(nodes)} result nodes with selector: #{selector}")
+    nodes
   end
 
   defp parse_result(node, config, tracker_id, base_url) do
@@ -56,8 +58,34 @@ defmodule Tailorr.Scraper do
       quality: extract_field(node, fields["quality"])
     }
 
-    Result.new(attrs)
+    result = Result.new(attrs)
+
+    # Fetch download URL for trackers that need it (e.g., DonTorrent with POW)
+    result = maybe_fetch_download_url(result, tracker_id, base_url, config)
+
+    IO.inspect(result, label: "DEBUG: Parsed result")
+    result
   end
+
+  # Fetch download URL for trackers with protected downloads
+  defp maybe_fetch_download_url(result, "dontorrent", base_url, _config) do
+    # Only fetch if we have detail_url but no download_url
+    if result.detail_url && !result.download_url do
+      case Downloaders.DonTorrent.get_download_url(result.detail_url, base_url) do
+        {:ok, download_url} ->
+          %{result | download_url: download_url}
+
+        {:error, reason} ->
+          require Logger
+          Logger.warning("Failed to get DonTorrent download URL: #{inspect(reason)}")
+          result
+      end
+    else
+      result
+    end
+  end
+
+  defp maybe_fetch_download_url(result, _tracker_id, _base_url, _config), do: result
 
   defp extract_field(_node, nil), do: nil
 

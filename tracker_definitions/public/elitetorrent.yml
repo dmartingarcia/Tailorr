@@ -1,0 +1,98 @@
+id: elitetorrent
+name: "EliteTorrent"
+description: "Spanish public torrent tracker - popular for series and movies"
+language: es
+type: public
+categories:
+  - movies
+  - tv
+
+# NOTE: Domain frequently changes - verify current working mirror
+enabled: false
+
+agent: http
+base_url: "https://www.elitetorrent.wf"  # TODO: Update with working mirror
+search_method: GET
+search_path: "/"
+
+search_params:
+  query_key: "s"
+
+parsing:
+  # NOTE: Selectors are estimates based on common Spanish tracker patterns
+  # Must be validated with actual HTML structure when site is accessible
+  result_rows: ".fichas-listado .ficha-list, .content-item, tr.lista2"
+  fields:
+    title: ".titulo a, h2 a, .title a"
+    detail_url: ".titulo a@href, h2 a@href, .title a@href"
+    quality: ".calidad, .quality, .version"
+    category: ".categoria, .category"
+
+    # May not be available in search results
+    size: ".tam, .size, .filesize"
+    size_format: human
+    seeders: ".seeds, .seeders"
+    leechers: ".peers, .leechers"
+
+    # Download links usually require visiting detail page
+    download_url: null
+    magnet_url: null
+
+  # Detail page likely needed for download links
+  detail_page:
+    enabled: false  # Enable after validating selectors
+    url_selector: ".titulo a@href, h2 a@href"
+    magnet_selector: "a[href^='magnet:']@href"
+    download_selector: ".descargar a@href, .download-btn@href"
+
+cache:
+  ttl_minutes: 20
+
+rate_limit:
+  requests_per_minute: 10
+  delay_between_requests_ms: 2000
+
+notes: |
+  EliteTorrent - Spanish tracker definition (PENDING VALIDATION)
+
+  === CURRENT STATUS ===
+
+  - Domain www.elitetorrent.wf is NOT reachable
+  - Need to find current working mirror/domain
+  - All selectors are estimates and need validation
+
+  === KNOWN CHARACTERISTICS ===
+
+  EliteTorrent is a popular Spanish tracker known for:
+  - Frequent domain changes due to takedowns
+  - Good selection of Spanish-dubbed content
+  - Series (especially ongoing shows)
+  - Movies (recent releases)
+
+  === COMMON DOMAIN PATTERNS ===
+
+  EliteTorrent historically uses domains like:
+  - elitetorrent.wf
+  - elitetorrent.li
+  - elitetorrent.io
+  - elitetorrent.net
+  - Various numbered mirrors (elitetorrent1.com, etc.)
+
+  === VALIDATION NEEDED ===
+
+  1. Find current working domain/mirror
+  2. Test for Cloudflare protection (may need cloudflare agent)
+  3. Inspect actual HTML structure
+  4. Validate/update all CSS selectors
+  5. Determine if detail page fetching is needed
+  6. Check search URL pattern (query param may differ)
+  7. Test pagination if implemented
+
+  === TODO ===
+
+  - [ ] Find working mirror URL
+  - [ ] Test basic connectivity
+  - [ ] Fetch search results HTML
+  - [ ] Update selectors based on real structure
+  - [ ] Validate download link location
+  - [ ] Set enabled: true after validation

@@ -46,13 +46,13 @@ defmodule Tailorr.Result do
 
   @doc """
   Validate that a result has minimum required fields.
-  At minimum, a result needs a title and either a download_url or magnet_url.
+  At minimum, a result needs a title and one of: download_url, magnet_url, or detail_url.
   """
   def valid?(%__MODULE__{title: nil}), do: false
   def valid?(%__MODULE__{title: ""}), do: false
 
-  def valid?(%__MODULE__{download_url: nil, magnet_url: nil}), do: false
-  def valid?(%__MODULE__{download_url: "", magnet_url: ""}), do: false
+  def valid?(%__MODULE__{download_url: nil, magnet_url: nil, detail_url: nil}), do: false
+  def valid?(%__MODULE__{download_url: "", magnet_url: "", detail_url: ""}), do: false
 
   def valid?(%__MODULE__{}), do: true
 end

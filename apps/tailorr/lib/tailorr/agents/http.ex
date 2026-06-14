@@ -46,6 +46,9 @@ defmodule Tailorr.Agents.Http do
 
     case result do
       {:ok, %{body: body, status: 200}} ->
+        IO.puts("DEBUG HTTP: Received #{byte_size(body)} bytes")
+        File.write!("/tmp/tailorr_response.html", body)
+        IO.puts("DEBUG HTTP: Saved to /tmp/tailorr_response.html")
         results = Scraper.parse(body, config)
         {:ok, results}
 
@@ -83,6 +86,7 @@ defmodule Tailorr.Agents.Http do
       receive_timeout: timeout,
       retry: :transient,
       max_retries: retries,
+      compressed: true,
       decode_body: true
     )
   end
@@ -99,6 +103,7 @@ defmodule Tailorr.Agents.Http do
       receive_timeout: timeout,
       retry: :transient,
       max_retries: retries,
+      compressed: true,
       decode_body: true
     )
   end
@@ -123,7 +128,6 @@ defmodule Tailorr.Agents.Http do
       "User-Agent" => "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       "Accept" => "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
       "Accept-Language" => "es-ES,es;q=0.9,en;q=0.8",
-      "Accept-Encoding" => "gzip, deflate, br",
       "DNT" => "1",
       "Connection" => "keep-alive",
       "Upgrade-Insecure-Requests" => "1",
