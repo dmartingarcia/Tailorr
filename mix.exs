@@ -9,7 +9,10 @@ defmodule Tailorr.Umbrella.MixProject do
       deps: deps(),
       aliases: aliases(),
       releases: releases(),
-      test_coverage: [tool: ExCoveralls]
+      test_coverage: [
+        tool: ExCoveralls,
+        summary: [threshold: 90]
+      ]
     ]
   end
 

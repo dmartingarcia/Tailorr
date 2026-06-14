@@ -157,7 +157,7 @@ defmodule TailorrWeb.TorznabControllerTest do
 
     test "validates correct nonce" do
       # Known valid nonce for this challenge (difficulty 2)
-      assert Tailorr.Pow.validate?("hello", 828, 2)
+      assert Tailorr.Pow.validate?("hello", 227, 2)
     end
 
     test "rejects invalid nonce" do

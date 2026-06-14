@@ -9,7 +9,8 @@ defmodule Tailorr.TrackerLoader do
 
   require Logger
 
-  @tracker_definitions_path "tracker_definitions"
+  @tracker_definitions_path Path.join([File.cwd!(), "..", "..", "tracker_definitions"])
+                            |> Path.expand()
 
   @doc """
   Load all tracker definitions from the tracker_definitions directory.
