@@ -7,23 +7,27 @@ categories:
   - movies
   - tv
 
-enabled: false
-agent: browser
+enabled: true
+agent: http
 base_url: "https://descargamix.net"
-search_path: "/buscar/{query}"
-wait_for_selector: ".card, .movie-item, .result"
+search_path: "/"
+search_params:
+  query_key: "valor"
+  extra_params:
+    sec: "buscador"
+    Buscar: "Buscar"
 
 parsing:
-  result_rows: ".movie-item, .torrent-item, .result"
+  # Same structure as DonTorrent (appears to be a mirror/proxy)
+  result_rows: "p"
   fields:
-    title: ".title a, h2 a"
-    detail_url: ".title a@href, h2 a@href"
-    quality: ".quality, .calidad"
-    category: ".category, .categoria"
-    size: ".size, .tam"
-    size_format: human
-    seeders: ".seeds"
-    leechers: ".leechers"
+    title: "span a.text-decoration-none"
+    detail_url: "span a.text-decoration-none@href"
+    quality: "span > span"
+    category: "span.badge.badge-primary.float-right"
+    size: null
+    seeders: null
+    leechers: null
     download_url: null
     magnet_url: null
 
@@ -35,14 +39,14 @@ rate_limit:
   delay_between_requests_ms: 2000
 
 notes: |
-  DescargaMix - Requires browser automation (JavaScript-rendered results)
+  DescargaMix - DonTorrent mirror/proxy
 
-  Search URL: https://descargamix.net/buscar/{query}
-  Page loads but results are loaded dynamically via JavaScript
+  Search: GET /?sec=buscador&valor=QUERY&Buscar=Buscar
+  Requires: Session cookies (fetch homepage first)
 
-  Needs:
-  - Browser agent with JavaScript execution
-  - Wait for results to load (.card, .movie-item selectors)
-  - Extract detail URLs from rendered DOM
+  Structure: Identical to DonTorrent
+  - Same URLs: /pelicula/ID/title
+  - Same HTML selectors
+  - Likely uses same POW protection for downloads
 
-  All selectors need validation once browser agent works
+  Download handling: Use DonTorrent downloader (same structure)
