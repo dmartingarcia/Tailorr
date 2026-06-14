@@ -1,0 +1,52 @@
+id: "1337x"
+name: "1337x"
+description: "General-purpose public torrent tracker with CF protection"
+language: en
+type: public
+categories:
+  - movies
+  - tv
+  - music
+  - games
+  - software
+
+agent: cloudflare
+base_url: "https://1337x.to"
+search_path: "/search/{query}/1/"
+max_timeout_ms: 60000
+session_ttl_minutes: 30
+
+# 1337x uses path-based search, not query params
+# The {query} placeholder is replaced by the URL-encoded search term
+search_params:
+  query_in_path: true
+  path_template: "/search/{query}/1/"
+
+parsing:
+  result_rows: "table.table-list tbody tr"
+  fields:
+    title: "td.name a:nth-child(2)"
+    download_url: null           # requires visiting detail page — see notes
+    magnet_url: null             # same
+    size: "td.size"
+    size_format: human
+    seeders: "td.seeds"
+    leechers: "td.leeches"
+    date: "td.date"
+  detail_page:
+    enabled: true
+    url_selector: "td.name a:nth-child(2)@href"
+    magnet_selector: "a.magnet-button@href"
+    download_selector: "a.download-button@href"
+
+cache:
+  ttl_minutes: 20
+
+rate_limit:
+  requests_per_minute: 10
+  delay_between_requests_ms: 2000
+
+notes: >
+  1337x requires visiting each result's detail page to get the magnet/download link.
+  The detail_page block handles this automatically but doubles the request count.
+  Consider filtering results before fetching detail pages (e.g. seeders > 0).

@@ -1,0 +1,41 @@
+id: nyaa
+name: "Nyaa"
+description: "Public anime, manga, and Japanese media tracker"
+language: ja
+type: public
+categories:
+  - tv       # anime series
+  - movies   # anime films
+  - music    # anime soundtracks
+  - books    # manga, light novels
+
+agent: http
+base_url: "https://nyaa.si"
+search_path: "/"
+headers:
+  User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+
+search_params:
+  query_key: "q"
+  extra_params:
+    f: "0"      # filter: 0=no filter, 1=no remakes, 2=trusted only
+    c: "0_0"    # category: 0_0=all
+
+parsing:
+  result_rows: "table.torrent-list tbody tr"
+  fields:
+    title: "td:nth-child(2) a:last-child"
+    category: "td:nth-child(1) a@title"
+    download_url: "td:nth-child(3) a:first-child@href"
+    magnet_url: "td:nth-child(3) a:last-child@href"
+    size: "td:nth-child(4)"
+    size_format: human
+    date: "td:nth-child(5)@data-timestamp"
+    seeders: "td:nth-child(6)"
+    leechers: "td:nth-child(7)"
+
+cache:
+  ttl_minutes: 10
+
+rate_limit:
+  requests_per_minute: 20

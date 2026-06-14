@@ -1,0 +1,63 @@
+id: example_private
+name: "Example Private Tracker"
+description: "Template for private trackers — copy and adapt"
+language: en
+type: private
+categories:
+  - movies
+  - tv
+enabled: false    # disabled until credentials are configured
+
+agent: auth
+base_url: "https://private-tracker.example.com"
+search_path: "/torrents.php"
+login_path: "/login.php"
+login_method: POST
+
+login_form:
+  username_field: "username"
+  password_field: "password"
+  extra_fields:
+    keeplogged: "1"
+    login: "Log in"
+
+credentials_env:
+  username: TRACKER_USERNAME_EXAMPLE_PRIVATE   # set this env var in .env
+  password: TRACKER_PASSWORD_EXAMPLE_PRIVATE
+
+session_check:
+  logged_in_selector: "#nav-userinfo"
+
+session_ttl_minutes: 1440    # 24 hours
+use_cloudflare: false
+
+search_params:
+  query_key: "searchstr"
+  extra_params:
+    order_by: "seeders"
+    order_way: "desc"
+    action: "basic"
+    searchsubmit: "1"
+
+parsing:
+  result_rows: "table#torrent_table tbody tr.torrent"
+  fields:
+    title: "td.td_info a.torrent_title_link"
+    download_url: "td.td_action a.td_torrent_link@href"
+    size: "td.td_size"
+    size_format: human
+    seeders: "td.td_seeders"
+    leechers: "td.td_leechers"
+    date: "td.td_uploaded span@title"
+
+cache:
+  ttl_minutes: 30
+
+rate_limit:
+  requests_per_minute: 5
+  delay_between_requests_ms: 3000
+
+notes: >
+  Template only — selectors will not work on a real tracker without adaptation.
+  Copy this file, rename to your tracker's id, update base_url and selectors,
+  then set credentials via env vars and flip enabled: true.
