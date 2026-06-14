@@ -1,0 +1,99 @@
+id: mejortorrent
+name: "MejorTorrent"
+description: "Spanish public torrent tracker with movies, series, and documentaries"
+language: es
+type: public
+categories:
+  - movies
+  - tv
+
+agent: http
+base_url: "https://www43.mejortorrent.eu"
+search_path: "/"
+max_timeout_ms: 60000
+session_ttl_minutes: 30
+
+# NOTE: Selectors below are initial estimates based on common Spanish tracker patterns
+# Must be validated and adjusted via testing with: make test-tracker TRACKER=mejortorrent
+enabled: true
+
+search_params:
+  query_key: "s"
+  extra_params:
+    search: "1"
+
+parsing:
+  # Common patterns for Spanish torrent sites - needs validation
+  result_rows: ".list-group-item, .torrent-list tr, .movie-item"
+  fields:
+    title: ".title a, h3 a, .name a"
+    download_url: ".download a@href, a.torrent@href"
+    magnet_url: ".magnet@href, a[href^='magnet:']@href"
+    size: ".size, .filesize, td:contains('GB')"
+    size_format: human
+    seeders: ".seeders, .seeds, td.seeds"
+    leechers: ".leechers, .peers, td.peers"
+    date: ".date, .upload-date, time"
+    category: ".category, .cat, .badge"
+
+  # May require detail page for actual download links
+  detail_page:
+    enabled: false  # Enable if search results don't include download links
+    url_selector: ".title a@href, h3 a@href"
+    magnet_selector: "a[href^='magnet:']@href"
+    download_selector: "a.download-torrent@href, a.btn-download@href"
+
+cache:
+  ttl_minutes: 20
+
+rate_limit:
+  requests_per_minute: 10
+  delay_between_requests_ms: 2000
+
+notes: |
+  MejorTorrent initial tracker definition - REQUIRES VALIDATION
+
+  === VALIDATION NEEDED ===
+
+  1. SITE ACCESS:
+     - Got 403 Forbidden on initial WebFetch attempt
+     - Likely has Cloudflare protection (hence cloudflare agent)
+     - May need session cookies or specific headers
+     - Test with: make test-tracker TRACKER=mejortorrent
+
+  2. SEARCH URL PATTERN:
+     - Assumed query param 's' based on common patterns
+     - May use different parameter name or path-based search
+     - Verify actual search URL format when site is accessible
+
+  3. HTML SELECTORS:
+     - All selectors are GUESSES based on common Spanish tracker patterns
+     - Multiple fallback selectors provided (.title a, h3 a, .name a)
+     - MUST be updated after inspecting actual HTML structure
+
+  4. DOWNLOAD LINKS:
+     - Unknown if magnet/download links are in search results or detail pages
+     - detail_page section prepared but disabled
+     - Enable if links require visiting individual torrent pages
+
+  === TESTING STEPS ===
+
+  1. Run: make test-tracker TRACKER=mejortorrent
+  2. Inspect FlareSolverr logs to verify CF bypass works
+  3. Check returned HTML structure and update selectors
+  4. Verify search query parameter name
+  5. Determine if detail_page fetching is needed
+  6. Update categories if site has more specific ones
+  7. Set enabled: true when all selectors validated
+
+  === ALTERNATIVE MIRRORS ===
+
+  MejorTorrent frequently changes domains due to takedowns.
+  Current: www43.mejortorrent.eu
+  Monitor for domain changes and update base_url accordingly.
+
+  === KNOWN LIMITATIONS ===
+
+  - Domain instability requires periodic base_url updates
+  - Cloudflare challenges may increase response times
+  - Rate limiting conservative until site behavior verified

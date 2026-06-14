@@ -1,0 +1,132 @@
+id: dontorrent
+name: "DonTorrent"
+description: "Spanish public torrent tracker with movies, series, and documentaries"
+language: es
+type: public
+categories:
+  - movies
+  - tv
+  - documentaries
+
+# NOTE: This tracker requires complex JavaScript-protected downloads
+# Currently limited to search results only - download links need implementation
+enabled: true
+
+agent: http
+base_url: "https://9386-don.mirror.pm"
+driver: flaresolverr
+wait_for_selector: ".card-body"
+max_timeout_ms: 60000
+
+# NOTE: Features below are NOT YET IMPLEMENTED in the codebase
+# Dontorrent uses POST-based search instead of GET
+# Current agents only support GET requests with query parameters
+search_method: POST           # TODO: Implement POST support in Browser agent
+search_path: "/buscar"
+search_params:
+  query_key: "valor"
+  extra_params:
+    Buscar: "Buscar"
+
+# Pagination is POST-based with page parameter
+pagination:                   # TODO: Implement pagination support
+  method: POST
+  page_param: "p"
+  includes_search_params: true
+
+parsing:
+  # Results are in a simple <p> list, not a table
+  result_rows: ".card-body p"
+  fields:
+    # Structure: <p><span><a href='/pelicula/ID/title'>Title</a> <span>(Quality)</span></span><span class="badge">Category</span></p>
+    title: "span a.text-decoration-none"
+    detail_url: "span a.text-decoration-none@href"
+    quality: "span > span"      # e.g., (DVDRip), (BluRay-1080p), (4K)
+    category: "span.badge.badge-primary.float-right"
+
+    # These fields are NOT available in search results
+    size: null
+    seeders: null
+    leechers: null
+    date: null
+
+    # Download links require multi-step JavaScript execution
+    # See notes below for implementation requirements
+    download_url: null
+    magnet_url: null
+
+cache:
+  ttl_minutes: 30
+
+rate_limit:
+  requests_per_minute: 5        # Conservative due to 60/hour download limit
+  delay_between_requests_ms: 3000
+
+notes: |
+  DonTorrent requires significant implementation work across multiple areas:
+
+  === REQUIRED INFRASTRUCTURE CHANGES ===
+
+  1. POST REQUEST SUPPORT (CRITICAL):
+     - Current agents (http/cloudflare/browser) only support GET with query params
+     - DonTorrent search REQUIRES POST to /buscar with form data: valor=<query>&Buscar=Buscar
+     - Need to add 'method' field support to agents (GET/POST)
+     - Browser agent needs to submit forms, not just navigate to URLs
+     - Files to modify: apps/tailorr/lib/tailorr/agents/browser.ex, http.ex, cloudflare.ex
+
+  2. PAGINATION SUPPORT (REQUIRED):
+     - DonTorrent uses POST pagination with 'p' parameter
+     - Current codebase has no pagination implementation
+     - Need pagination framework that supports both GET and POST methods
+     - Files to create: apps/tailorr/lib/tailorr/pagination.ex
+
+  3. JAVASCRIPT-PROTECTED DOWNLOADS (COMPLEX):
+     - Each result links to detail page (e.g., /pelicula/25786/El-test)
+     - Download button triggers Proof-of-Work computation:
+       * JavaScript computes SHA-256 hash with difficulty=3
+       * POSTs challenge+nonce to /api_validate_pow.php
+       * Server returns JSON: {download_url: "..."}
+     - Rate limited: 60 downloads/hour, CAPTCHA for soft limits
+
+     IMPLEMENTATION OPTIONS:
+     a) Browser agent 'port' driver + custom JS to execute PoW (most robust)
+     b) Implement SHA-256 PoW in Elixir + direct API calls (faster, complex)
+     c) Extend 'detail_page' mechanism for JS execution (doesn't exist yet)
+
+  === CURRENT TRACKER STATUS ===
+
+  - Search results structure: Identified and documented in parsing section
+  - HTML selectors: Ready but untested (POST support needed to test)
+  - Cloudflare protection: Can be handled by browser agent with flaresolverr driver
+  - Seeders/leechers/size: NOT available in search results, only on detail pages
+
+  === DATA LIMITATIONS ===
+
+  Search results show ONLY:
+  - Title (with detail page URL)
+  - Quality/format (DVDRip, BluRay-1080p, 4K, etc.)
+  - Category (Película, Serie, Documental)
+
+  Missing from search results:
+  - File size
+  - Seeders/leechers
+  - Upload date
+  - Download/magnet links (protected by PoW on detail pages)
+
+  === ALTERNATIVE MIRRORS ===
+
+  - .onion: dontorufwmbqhnoe2wvko5ynis6axf7bqod6wkmdvxmjyek64tantlqd.onion
+  - Current base_url: 9386-don.mirror.pm (proxy mirror)
+  - Original: dontorrent.com (likely blocked in many regions)
+
+  === ACTION ITEMS ===
+
+  Before this tracker can work:
+  1. Implement POST request support in Browser agent
+  2. Test search with POST method and validate selectors
+  3. Implement pagination framework
+  4. Decide on download protection strategy (port driver vs Elixir PoW)
+  5. Implement chosen download mechanism
+  6. Test end-to-end with Docker stack
+
+  Set enabled: true only after all above items are complete.

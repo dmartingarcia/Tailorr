@@ -51,3 +51,6 @@ node_modules/
 # Uploads / temp
 priv/uploads/
 tmp/
+*.db
+*.db-shm
+*.db-wal

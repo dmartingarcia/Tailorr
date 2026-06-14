@@ -35,10 +35,16 @@ defmodule Tailorr.Agents.Http do
 
   @impl true
   def search(config, %SearchQuery{} = query) do
-    url = build_url(config, query)
+    method = Map.get(config, "search_method", "GET") |> String.upcase()
     headers = build_headers(config)
 
-    case fetch(url, headers, config) do
+    result =
+      case method do
+        "POST" -> fetch_post(config, query, headers)
+        _ -> fetch_get(config, query, headers)
+      end
+
+    case result do
       {:ok, %{body: body, status: 200}} ->
         results = Scraper.parse(body, config)
         {:ok, results}
@@ -55,8 +61,10 @@ defmodule Tailorr.Agents.Http do
   def test_connection(config) do
     url = config["base_url"]
     headers = build_headers(config)
+    timeout = Map.get(config, "timeout_ms", @default_timeout_ms)
+    retries = Map.get(config, "retries", @default_retries)
 
-    case fetch(url, headers, config) do
+    case Req.get(url, headers: headers, receive_timeout: timeout, retry: :transient, max_retries: retries) do
       {:ok, %{status: status}} when status in 200..299 -> :ok
       {:ok, %{status: status}} -> {:error, {:http_error, status}}
       {:error, reason} -> {:error, reason}
@@ -65,7 +73,8 @@ defmodule Tailorr.Agents.Http do
 
   # --- Private ---
 
-  defp fetch(url, headers, config) do
+  defp fetch_get(config, query, headers) do
+    url = build_url(config, query)
     timeout = Map.get(config, "timeout_ms", @default_timeout_ms)
     retries = Map.get(config, "retries", @default_retries)
 
@@ -78,6 +87,28 @@ defmodule Tailorr.Agents.Http do
     )
   end
 
+  defp fetch_post(config, query, headers) do
+    url = build_post_url(config)
+    form_data = SearchQuery.to_params(query, config)
+    timeout = Map.get(config, "timeout_ms", @default_timeout_ms)
+    retries = Map.get(config, "retries", @default_retries)
+
+    Req.post(url,
+      headers: headers,
+      form: form_data,
+      receive_timeout: timeout,
+      retry: :transient,
+      max_retries: retries,
+      decode_body: true
+    )
+  end
+
+  defp build_post_url(config) do
+    base = config["base_url"]
+    path = config["search_path"] || "/search"
+    "#{base}#{path}"
+  end
+
   defp build_url(config, query) do
     base = config["base_url"]
     path = config["search_path"] || "/search"
@@ -86,11 +117,21 @@ defmodule Tailorr.Agents.Http do
   end
 
   defp build_headers(config) do
+    base_url = config["base_url"]
+
     defaults = %{
-      "User-Agent" => "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      "Accept" => "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "Accept-Language" => "en-US,en;q=0.5",
-      "Accept-Encoding" => "gzip, deflate, br"
+      "User-Agent" => "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Accept" => "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+      "Accept-Language" => "es-ES,es;q=0.9,en;q=0.8",
+      "Accept-Encoding" => "gzip, deflate, br",
+      "DNT" => "1",
+      "Connection" => "keep-alive",
+      "Upgrade-Insecure-Requests" => "1",
+      "Sec-Fetch-Dest" => "document",
+      "Sec-Fetch-Mode" => "navigate",
+      "Sec-Fetch-Site" => "none",
+      "Cache-Control" => "max-age=0",
+      "Referer" => base_url
     }
 
     Map.merge(defaults, Map.get(config, "headers", %{}))
