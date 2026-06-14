@@ -22,7 +22,8 @@ defmodule Tailorr.Scraper do
 
     with {:ok, document} <- Floki.parse_document(html),
          result_nodes <- extract_result_nodes(document, parsing_config),
-         results <- Enum.map(result_nodes, &parse_result(&1, parsing_config, tracker_id, base_url)) do
+         results <-
+           Enum.map(result_nodes, &parse_result(&1, parsing_config, tracker_id, base_url)) do
       results
       |> Enum.filter(&Result.valid?/1)
     else

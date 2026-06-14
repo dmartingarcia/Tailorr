@@ -80,7 +80,9 @@ defmodule Tailorr.Agents.Api do
   defp parse_response(body, "torznab", _config), do: Normalizer.from_torznab_xml(body)
   defp parse_response(body, "newznab", _config), do: Normalizer.from_newznab_xml(body)
   defp parse_response(body, "rss", _config), do: Normalizer.from_rss(body)
-  defp parse_response(body, "json", config), do: Normalizer.from_json(body, config["response_mapping"])
+
+  defp parse_response(body, "json", config),
+    do: Normalizer.from_json(body, config["response_mapping"])
 
   defp build_url(config, query) do
     base = config["base_url"]

@@ -7,7 +7,7 @@ categories:
   - movies
   - tv
 
-enabled: false
+enabled: true
 agent: http
 base_url: "https://descargamix.net"
 search_path: "/"

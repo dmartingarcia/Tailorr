@@ -93,7 +93,12 @@ defmodule Tailorr.Agents.Auth do
       {:ok, %{status: s, headers: headers, body: body}} when s in [200, 302] ->
         if logged_in?(body, config) do
           cookies = extract_cookies(headers)
-          {:ok, Map.merge(config, %{"__cookies" => cookies, "__last_login_at" => :os.system_time(:second)})}
+
+          {:ok,
+           Map.merge(config, %{
+             "__cookies" => cookies,
+             "__last_login_at" => :os.system_time(:second)
+           })}
         else
           {:error, :login_failed}
         end

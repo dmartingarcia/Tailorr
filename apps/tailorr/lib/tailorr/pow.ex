@@ -24,7 +24,8 @@ defmodule Tailorr.Pow do
   """
   def compute(challenge, difficulty \\ 3) do
     target = String.duplicate("0", difficulty)
-    max_iterations = 10_000_000  # Safety limit
+    # Safety limit
+    max_iterations = 10_000_000
 
     compute_loop(challenge, target, 0, max_iterations)
   end

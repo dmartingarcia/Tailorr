@@ -50,7 +50,10 @@ defmodule Tailorr.TrackerLoader do
         []
 
       {:error, reason} ->
-        Logger.error("Failed to read tracker definitions directory #{dir_path}: #{inspect(reason)}")
+        Logger.error(
+          "Failed to read tracker definitions directory #{dir_path}: #{inspect(reason)}"
+        )
+
         []
     end
   end

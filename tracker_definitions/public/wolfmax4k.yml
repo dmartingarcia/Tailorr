@@ -36,7 +36,8 @@ rate_limit:
   delay_between_requests_ms: 2000
 
 notes: |
-  WolfMax4K - Domain unreachable
-  Status: Connection failed (port 443)
-  Need working mirror/domain
-  All selectors are estimates
+  WolfMax4K - Requiere Cloudflare WARP para acceder
+  Status: Geo-bloqueado o requiere VPN
+  Dominio oficial: wolfmax4k.com
+  Solución: Usar Cloudflare WARP (https://one.one.one.one)
+  All selectors are estimates - needs validation with WARP access

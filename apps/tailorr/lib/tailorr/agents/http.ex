@@ -67,7 +67,12 @@ defmodule Tailorr.Agents.Http do
     timeout = Map.get(config, "timeout_ms", @default_timeout_ms)
     retries = Map.get(config, "retries", @default_retries)
 
-    case Req.get(url, headers: headers, receive_timeout: timeout, retry: :transient, max_retries: retries) do
+    case Req.get(url,
+           headers: headers,
+           receive_timeout: timeout,
+           retry: :transient,
+           max_retries: retries
+         ) do
       {:ok, %{status: status}} when status in 200..299 -> :ok
       {:ok, %{status: status}} -> {:error, {:http_error, status}}
       {:error, reason} -> {:error, reason}
@@ -125,7 +130,8 @@ defmodule Tailorr.Agents.Http do
     base_url = config["base_url"]
 
     defaults = %{
-      "User-Agent" => "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "User-Agent" =>
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       "Accept" => "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
       "Accept-Language" => "es-ES,es;q=0.9,en;q=0.8",
       "DNT" => "1",
