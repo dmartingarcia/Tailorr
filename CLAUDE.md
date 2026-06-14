@@ -101,4 +101,6 @@ See `.env.example` for required variables. Key ones:
 - `mix test` — unit tests
 - `mix test --only integration` — integration tests (need Docker services running)
 - `make test-tracker TRACKER=<name>` — validate a single tracker definition and run a live search
+- `make test-coverage` — run tests with coverage report in console
+- `make test-coverage-html` — generate HTML coverage report (opens `cover/excoveralls.html`)
 - Mocks: use `Tailorr.Agents.Mock` in tests; never hit real trackers in unit tests.

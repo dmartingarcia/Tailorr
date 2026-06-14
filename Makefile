@@ -8,7 +8,7 @@ GID := $(shell id -g)
 .DEFAULT_GOAL := help
 
 .PHONY: help setup dev build stop down clean \
-        test test-tracker lint shell \
+        test test-tracker test-coverage test-coverage-html lint shell \
         db-migrate db-reset db-console \
         logs ps \
         flare-logs flare-restart \
@@ -73,6 +73,14 @@ test-watch: ## Run tests in watch mode
 test-tracker: ## Test a single tracker definition: make test-tracker TRACKER=nyaa
 	@[ -n "$(TRACKER)" ] || (echo "Usage: make test-tracker TRACKER=<id>"; exit 1)
 	$(APP) mix tailorr.test_tracker $(TRACKER)
+
+test-coverage: ## Run tests with coverage report in console
+	$(APP) mix coveralls
+
+test-coverage-html: ## Generate HTML coverage report (outputs to cover/excoveralls.html)
+	$(APP) mix coveralls.html
+	@echo ""
+	@echo "✓ Coverage report generated at cover/excoveralls.html"
 
 lint: ## Run Credo + format check
 	$(APP) mix do credo --strict, format --check-formatted

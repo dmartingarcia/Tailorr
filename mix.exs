@@ -8,12 +8,22 @@ defmodule Tailorr.Umbrella.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       aliases: aliases(),
-      releases: releases()
+      releases: releases(),
+      test_coverage: [tool: ExCoveralls],
+      preferred_cli_env: [
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test,
+        "coveralls.json": :test
+      ]
     ]
   end
 
   defp deps do
-    []
+    [
+      {:excoveralls, "~> 0.18", only: :test}
+    ]
   end
 
   defp aliases do

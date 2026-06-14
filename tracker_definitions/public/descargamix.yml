@@ -9,6 +9,7 @@ categories:
 
 enabled: true
 agent: http
+needs_cookies: true
 base_url: "https://descargamix.net"
 search_path: "/"
 search_params:

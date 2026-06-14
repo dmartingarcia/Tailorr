@@ -35,13 +35,15 @@ defmodule Tailorr.Agents.Http do
 
   @impl true
   def search(config, %SearchQuery{} = query) do
+    # Initialize session with cookies if needed
+    req = build_req_client(config)
+
     method = Map.get(config, "search_method", "GET") |> String.upcase()
-    headers = build_headers(config)
 
     result =
       case method do
-        "POST" -> fetch_post(config, query, headers)
-        _ -> fetch_get(config, query, headers)
+        "POST" -> fetch_post(req, config, query)
+        _ -> fetch_get(req, config, query)
       end
 
     case result do
@@ -81,36 +83,49 @@ defmodule Tailorr.Agents.Http do
 
   # --- Private ---
 
-  defp fetch_get(config, query, headers) do
-    url = build_url(config, query)
+  # Build Req client with cookie jar
+  defp build_req_client(config) do
     timeout = Map.get(config, "timeout_ms", @default_timeout_ms)
     retries = Map.get(config, "retries", @default_retries)
+    headers = build_headers(config)
 
-    Req.get(url,
-      headers: headers,
-      receive_timeout: timeout,
-      retry: :transient,
-      max_retries: retries,
-      compressed: true,
-      decode_body: true
-    )
+    # Create client with cookie jar
+    req =
+      Req.new(
+        receive_timeout: timeout,
+        retry: :transient,
+        max_retries: retries,
+        compressed: true,
+        decode_body: true,
+        headers: headers
+      )
+
+    # Visit homepage to get cookies if needed
+    if Map.get(config, "needs_cookies", false) do
+      base_url = config["base_url"]
+
+      case Req.get(req, url: base_url) do
+        {:ok, response} ->
+          # Return the request from the response to preserve cookies
+          response.private.req_request
+
+        {:error, _} ->
+          req
+      end
+    else
+      req
+    end
   end
 
-  defp fetch_post(config, query, headers) do
+  defp fetch_get(req, config, query) do
+    url = build_url(config, query)
+    Req.get(req, url: url)
+  end
+
+  defp fetch_post(req, config, query) do
     url = build_post_url(config)
     form_data = SearchQuery.to_params(query, config)
-    timeout = Map.get(config, "timeout_ms", @default_timeout_ms)
-    retries = Map.get(config, "retries", @default_retries)
-
-    Req.post(url,
-      headers: headers,
-      form: form_data,
-      receive_timeout: timeout,
-      retry: :transient,
-      max_retries: retries,
-      compressed: true,
-      decode_body: true
-    )
+    Req.post(req, url: url, form: form_data)
   end
 
   defp build_post_url(config) do

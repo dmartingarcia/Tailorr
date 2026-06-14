@@ -1,0 +1,38 @@
+id: mock
+name: "Mock Tracker (Test)"
+description: "Test tracker with hardcoded results for E2E testing"
+language: en
+type: public
+categories:
+  - movies
+  - tv
+
+enabled: true
+agent: mock
+base_url: "https://example.com"
+
+# No actual scraping - returns mock data based on query
+# Query "matrix" → Matrix movies
+# Query "spider" → Spider-Man
+# Query "test" → Generic test result
+
+cache:
+  ttl_minutes: 0  # No caching for tests
+
+rate_limit:
+  requests_per_minute: 1000
+  delay_between_requests_ms: 0
+
+notes: |
+  Mock tracker for testing and development.
+
+  Returns hardcoded results based on query:
+  - "matrix" → 3 Matrix movies with full metadata
+  - "spider" → Spider-Man movie
+  - "test" → Generic test torrent
+
+  Use for:
+  - E2E testing of Torznab API
+  - Testing result normalization
+  - Testing without hitting real trackers
+  - Development/debugging
