@@ -1,0 +1,53 @@
+# Elixir / Mix
+_build/
+deps/
+*.ez
+*.beam
+erl_crash.dump
+.elixir_ls/
+.mix/
+*.app
+
+# Dialyzer
+priv/plts/
+
+# Secrets & config
+config/prod.secret.exs
+config/secrets.exs
+.env
+.env.*
+!.env.example
+
+# Docker
+.docker/
+
+# FlareSolverr / browser cache
+services/flare_solver/__pycache__/
+services/flare_solver/*.pyc
+
+# Logs
+*.log
+logs/
+
+# DB files (SQLite)
+*.db
+*.sqlite
+*.sqlite3
+priv/repo/*.db
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# Node (for any JS tooling)
+node_modules/
+
+# Uploads / temp
+priv/uploads/
+tmp/
