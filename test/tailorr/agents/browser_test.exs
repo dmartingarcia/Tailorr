@@ -45,10 +45,8 @@ defmodule Tailorr.Agents.BrowserTest do
 
       query = %SearchQuery{query: "test"}
 
-      # Will try to use BrowserPort (which doesn't exist yet)
-      assert_raise UndefinedFunctionError, fn ->
-        Browser.search(config, query)
-      end
+      # Will try to use BrowserPort (not running in test env)
+      assert {:error, _} = Browser.search(config, query)
     end
   end
 
@@ -62,12 +60,8 @@ defmodule Tailorr.Agents.BrowserTest do
 
       query = %SearchQuery{query: "test"}
 
-      # Options are built and passed to BrowserPort
-      # Can't test directly as BrowserPort doesn't exist,
-      # but we verify the function doesn't crash
-      assert_raise UndefinedFunctionError, fn ->
-        Browser.search(config, query)
-      end
+      # Options are built and passed to BrowserPort (not running in test env)
+      assert {:error, _} = Browser.search(config, query)
     end
 
     test "includes custom wait_for_selector" do
@@ -80,9 +74,7 @@ defmodule Tailorr.Agents.BrowserTest do
 
       query = %SearchQuery{query: "test"}
 
-      assert_raise UndefinedFunctionError, fn ->
-        Browser.search(config, query)
-      end
+      assert {:error, _} = Browser.search(config, query)
     end
 
     test "includes scroll_to_bottom option" do
@@ -95,9 +87,7 @@ defmodule Tailorr.Agents.BrowserTest do
 
       query = %SearchQuery{query: "test"}
 
-      assert_raise UndefinedFunctionError, fn ->
-        Browser.search(config, query)
-      end
+      assert {:error, _} = Browser.search(config, query)
     end
 
     test "includes screenshot_on_error option" do
@@ -110,9 +100,7 @@ defmodule Tailorr.Agents.BrowserTest do
 
       query = %SearchQuery{query: "test"}
 
-      assert_raise UndefinedFunctionError, fn ->
-        Browser.search(config, query)
-      end
+      assert {:error, _} = Browser.search(config, query)
     end
 
     test "includes custom timeout" do
@@ -125,9 +113,7 @@ defmodule Tailorr.Agents.BrowserTest do
 
       query = %SearchQuery{query: "test"}
 
-      assert_raise UndefinedFunctionError, fn ->
-        Browser.search(config, query)
-      end
+      assert {:error, _} = Browser.search(config, query)
     end
   end
 
@@ -142,10 +128,8 @@ defmodule Tailorr.Agents.BrowserTest do
 
       query = %SearchQuery{query: "matrix"}
 
-      # URL building happens before BrowserPort call
-      assert_raise UndefinedFunctionError, fn ->
-        Browser.search(config, query)
-      end
+      # URL building happens before BrowserPort call (not running in test env)
+      assert {:error, _} = Browser.search(config, query)
     end
 
     test "uses default search_path" do
@@ -157,9 +141,7 @@ defmodule Tailorr.Agents.BrowserTest do
 
       query = %SearchQuery{query: "test"}
 
-      assert_raise UndefinedFunctionError, fn ->
-        Browser.search(config, query)
-      end
+      assert {:error, _} = Browser.search(config, query)
     end
 
     test "includes custom search params" do
@@ -175,9 +157,7 @@ defmodule Tailorr.Agents.BrowserTest do
 
       query = %SearchQuery{query: "test"}
 
-      assert_raise UndefinedFunctionError, fn ->
-        Browser.search(config, query)
-      end
+      assert {:error, _} = Browser.search(config, query)
     end
   end
 
@@ -198,10 +178,8 @@ defmodule Tailorr.Agents.BrowserTest do
         "driver" => "port"
       }
 
-      # BrowserPort doesn't exist
-      assert_raise UndefinedFunctionError, fn ->
-        Browser.test_connection(config)
-      end
+      # BrowserPort not running in test env
+      assert {:error, _} = Browser.test_connection(config)
     end
   end
 end

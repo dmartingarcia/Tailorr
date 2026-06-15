@@ -102,7 +102,14 @@ defmodule Tailorr.Captcha.SmartSolver do
 
     Logger.info("Trying ML solver...")
 
-    case Captcha.solve(captcha_data, :ml) do
+    ml_result =
+      try do
+        Captcha.solve(captcha_data, :ml)
+      rescue
+        e -> {:error, {:ml_exception, Exception.message(e)}}
+      end
+
+    case ml_result do
       {:ok, prediction, metadata} ->
         handle_ml_with_metadata(
           captcha_data,
@@ -195,6 +202,8 @@ defmodule Tailorr.Captcha.SmartSolver do
       {:error, _} = error ->
         error
     end
+  rescue
+    e -> {:error, {:ml_exception, Exception.message(e)}}
   end
 
   # Solo usuario, sin ML
@@ -229,6 +238,10 @@ defmodule Tailorr.Captcha.SmartSolver do
   defp save_result(captcha_data, result, elapsed_ms) do
     tracker = get_tracker(captcha_data)
     do_save_result(captcha_data, tracker, result, elapsed_ms)
+  rescue
+    e ->
+      Logger.warning("Failed to save captcha learning result: #{inspect(e)}")
+      :ok
   end
 
   defp do_save_result(captcha_data, tracker, {:ok, solution, metadata}, elapsed_ms) do

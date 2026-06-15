@@ -46,9 +46,14 @@ defmodule Tailorr.Agents.Browser do
   @impl true
   def test_connection(config) do
     case driver(config) do
-      :flaresolverr -> Cloudflare.test_connection(config)
-      :port -> BrowserPort.test_connection(config)
+      :flaresolverr ->
+        Cloudflare.test_connection(config)
+
+      :port ->
+        BrowserPort.test_connection(config)
     end
+  catch
+    :exit, {:noproc, _} -> {:error, :browser_service_unavailable}
   end
 
   # --- Private ---
@@ -65,6 +70,9 @@ defmodule Tailorr.Agents.Browser do
       {:error, _} = err ->
         err
     end
+  catch
+    :exit, {:noproc, _} -> {:error, :browser_service_unavailable}
+    :exit, {:timeout, _} -> {:error, :timeout}
   end
 
   defp driver(config) do

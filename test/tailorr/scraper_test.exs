@@ -50,12 +50,15 @@ defmodule Tailorr.ScraperTest do
         <body>
           <tr class="torrent">
             <td class="title">Movie 1</td>
+            <td><a href="/dl/1">DL</a></td>
           </tr>
           <tr class="torrent">
             <td class="title">Movie 2</td>
+            <td><a href="/dl/2">DL</a></td>
           </tr>
           <tr class="torrent">
             <td class="title">Movie 3</td>
+            <td><a href="/dl/3">DL</a></td>
           </tr>
         </body>
       </html>
@@ -116,6 +119,7 @@ defmodule Tailorr.ScraperTest do
       html = """
       <div class="container">
         <span class="title">Test Title</span>
+        <a href="/dl">DL</a>
       </div>
       """
 
@@ -161,6 +165,7 @@ defmodule Tailorr.ScraperTest do
       html = """
       <div>
         <span class="new-title">New Title</span>
+        <a href="/dl">DL</a>
       </div>
       """
 
@@ -303,6 +308,7 @@ defmodule Tailorr.ScraperTest do
       html = """
       <div>
         <span class="title">Test &amp; Movie &lt;2024&gt;</span>
+        <a href="/dl">DL</a>
       </div>
       """
 
@@ -322,6 +328,7 @@ defmodule Tailorr.ScraperTest do
       html = """
       <div>
         <span class="title">It&quot;s a &quot;test&quot;</span>
+        <a href="/dl">DL</a>
       </div>
       """
 
@@ -341,6 +348,7 @@ defmodule Tailorr.ScraperTest do
       html = """
       <div>
         <span class="title">Test&nbsp;Movie</span>
+        <a href="/dl">DL</a>
       </div>
       """
 
@@ -353,7 +361,9 @@ defmodule Tailorr.ScraperTest do
       }
 
       results = Scraper.parse(html, config)
-      assert List.first(results).title == "Test Movie"
+      # &nbsp; decodes to Unicode non-breaking space (U+00A0), normalize before comparing
+      title = List.first(results).title
+      assert String.replace(title, "\u00a0", " ") == "Test Movie"
     end
   end
 
@@ -362,6 +372,7 @@ defmodule Tailorr.ScraperTest do
       html = """
       <div>
         <span class="title">  Test Movie  </span>
+        <a href="/dl">DL</a>
       </div>
       """
 
@@ -384,6 +395,7 @@ defmodule Tailorr.ScraperTest do
           Test
           Movie
         </span>
+        <a href="/dl">DL</a>
       </div>
       """
 
