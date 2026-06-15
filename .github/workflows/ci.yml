@@ -26,16 +26,14 @@ jobs:
 
       - uses: actions/cache@v4
         with:
-          path: apps/tailorr/deps
-          key: deps-${{ runner.os }}-${{ hashFiles('apps/tailorr/mix.lock') }}
+          path: deps
+          key: deps-${{ runner.os }}-${{ hashFiles('mix.lock') }}
           restore-keys: deps-${{ runner.os }}-
 
       - name: Install dependencies
-        working-directory: apps/tailorr
         run: mix deps.get
 
       - name: Check formatting
-        working-directory: apps/tailorr
         run: mix format --check-formatted
 
   # ── Lint ────────────────────────────────────────────────────────────────────
@@ -53,45 +51,24 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: |
-            apps/tailorr/deps
-            apps/tailorr/_build
-          key: build-${{ runner.os }}-${{ hashFiles('apps/tailorr/mix.lock') }}
+            deps
+            _build
+          key: build-${{ runner.os }}-${{ hashFiles('mix.lock') }}
           restore-keys: build-${{ runner.os }}-
 
       - name: Install dependencies
-        working-directory: apps/tailorr
         run: mix deps.get
 
       - name: Compile
-        working-directory: apps/tailorr
         run: mix compile --warnings-as-errors
 
       - name: Run Credo
-        working-directory: apps/tailorr
         run: mix credo --strict
 
-  # ── Test ────────────────────────────────────────────────────────────────────
+  # ── Test + Coverage ─────────────────────────────────────────────────────────
   test:
-    name: Test
+    name: Test & Coverage
     runs-on: ubuntu-latest
-
-    services:
-      db:
-        image: postgres:18-alpine
-        env:
-          POSTGRES_USER: tailorr
-          POSTGRES_PASSWORD: tailorr
-          POSTGRES_DB: tailorr_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-    env:
-      DATABASE_URL: ecto://tailorr:tailorr@localhost/tailorr_test
 
     steps:
       - uses: actions/checkout@v4
@@ -104,22 +81,34 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: |
-            apps/tailorr/deps
-            apps/tailorr/_build
-          key: build-${{ runner.os }}-${{ hashFiles('apps/tailorr/mix.lock') }}
+            deps
+            _build
+          key: build-${{ runner.os }}-${{ hashFiles('mix.lock') }}
           restore-keys: build-${{ runner.os }}-
 
       - name: Install dependencies
-        working-directory: apps/tailorr
         run: mix deps.get
 
-      - name: Create and migrate database
-        working-directory: apps/tailorr
-        run: mix ecto.setup
+      - name: Create database
+        run: mix ecto.create && mix ecto.migrate
 
-      - name: Run tests
-        working-directory: apps/tailorr
-        run: mix test --warnings-as-errors
+      - name: Run tests with coverage
+        run: mix coveralls.github
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+
+      - name: Generate HTML coverage report
+        run: mix coveralls.html
+        if: always()
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: cover/
+          retention-days: 30
 
   # ── Docker build ─────────────────────────────────────────────────────────────
   docker:
@@ -135,7 +124,7 @@ jobs:
       - name: Build image
         uses: docker/build-push-action@v6
         with:
-          context: apps/tailorr
+          context: .
           push: false
           target: runtime
           cache-from: type=gha
