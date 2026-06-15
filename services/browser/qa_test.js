@@ -18,6 +18,7 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:4000';
 const SCREENSHOT_DIR = process.env.SCREENSHOT_DIR || '/tmp/tailorr_qa_screenshots';
 const TIMEOUT = parseInt(process.env.TIMEOUT_MS || '10000', 10);
 const HEADED = process.env.HEADED === '1';
+const API_KEY = process.env.TAILORR_API_KEY || '';
 
 if (HEADED) {
   process.stderr.write('Running in headed mode — browser window will be visible\n');
@@ -101,7 +102,7 @@ async function suiteHttpSmoke() {
     { path: '/api/?t=caps', label: 'Torznab caps (no auth)', expectStatus: 200 },
     { path: '/api/?t=search&q=test&apikey=bad_key', label: 'Torznab bad API key → not 500', expectStatus: [401, 403, 400] },
     { path: '/nonexistent-route-xyz', label: '404 for unknown routes', expectStatus: 404 },
-    { path: '/ui/captcha_review', label: 'Captcha review route (expected 404 — no route defined)', expectStatus: 404 },
+    { path: '/ui/captcha-review', label: 'Captcha review UI', expectStatus: 200 },
   ];
 
   for (const route of routes) {
@@ -421,6 +422,206 @@ async function suiteLiveViewWS(browser) {
 }
 
 // ---------------------------------------------------------------------------
+// Suite: Captcha Review UI
+// ---------------------------------------------------------------------------
+
+async function suiteCaptchaReview(browser) {
+  process.stderr.write('\n[Captcha Review — /ui/captcha-review]\n');
+  const page = await browser.newPage();
+
+  const consoleErrors = [];
+  page.on('console', msg => {
+    if (msg.type() === 'error') consoleErrors.push(msg.text());
+  });
+
+  const pageErrors = [];
+  page.on('pageerror', err => pageErrors.push(err.message));
+
+  try {
+    await navigateTo(page, `${BASE_URL}/ui/captcha-review`);
+    await screenshot(page, 'captcha_review_initial');
+
+    const html = await page.content();
+    if (noStacktrace(html)) {
+      pass('CaptchaReview', 'No Elixir stacktrace in page HTML');
+    } else {
+      fail('CaptchaReview', 'No Elixir stacktrace in page HTML', 'Stacktrace detected');
+    }
+
+    try {
+      await page.waitForFunction(
+        () => document.querySelector('[data-phx-main]') !== null,
+        { timeout: TIMEOUT }
+      );
+      pass('CaptchaReview', 'LiveView root element mounted');
+    } catch (_) {
+      fail('CaptchaReview', 'LiveView root element mounted', 'phx-main element not found after timeout');
+    }
+
+    // Stats panel should render (even with empty data)
+    const statsPanel = await page.$('.grid');
+    if (statsPanel) {
+      pass('CaptchaReview', 'Stats panel rendered');
+    } else {
+      fail('CaptchaReview', 'Stats panel rendered', 'No .grid element found');
+    }
+
+    // Tab buttons should be present (Failed / Success / Classified)
+    const tabBtn = await page.$('button[phx-click="change_tab"]');
+    if (tabBtn) {
+      pass('CaptchaReview', 'Tab buttons present');
+      // Click the Success tab
+      try {
+        await tabBtn.click();
+        await page.waitForTimeout(500);
+        await screenshot(page, 'captcha_review_tab_clicked');
+        pass('CaptchaReview', 'Tab click does not crash');
+      } catch (err) {
+        fail('CaptchaReview', 'Tab click does not crash', err.message);
+      }
+    } else {
+      fail('CaptchaReview', 'Tab buttons present', 'No phx-click=change_tab button found');
+    }
+
+    if (consoleErrors.length === 0) {
+      pass('CaptchaReview', 'No browser console errors');
+    } else {
+      fail('CaptchaReview', 'No browser console errors', consoleErrors.slice(0, 3).join(' | '));
+    }
+
+    if (pageErrors.length === 0) {
+      pass('CaptchaReview', 'No uncaught JavaScript errors');
+    } else {
+      fail('CaptchaReview', 'No uncaught JavaScript errors', pageErrors.slice(0, 3).join(' | '));
+    }
+  } catch (err) {
+    fail('CaptchaReview', 'Page load', err.message);
+    await screenshot(page, 'captcha_review_error');
+  } finally {
+    await page.close();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Suite: Torznab search with valid API key
+// ---------------------------------------------------------------------------
+
+async function suiteTorznabSearch() {
+  process.stderr.write('\n[Torznab Search]\n');
+
+  if (!API_KEY) {
+    skip('TorznabSearch', 'All checks', 'TAILORR_API_KEY not set — set it to enable search tests');
+    return;
+  }
+
+  // t=search
+  try {
+    const r = await fetch(
+      `${BASE_URL}/api/?t=search&q=ubuntu&apikey=${encodeURIComponent(API_KEY)}`,
+      { signal: AbortSignal.timeout(TIMEOUT) }
+    );
+
+    if (r.status === 200) {
+      pass('TorznabSearch', 'search returns HTTP 200 with valid key');
+    } else {
+      fail('TorznabSearch', 'search returns HTTP 200 with valid key', `Got HTTP ${r.status}`);
+      return;
+    }
+
+    const body = await r.text();
+
+    if (body.startsWith('<?xml')) {
+      pass('TorznabSearch', 'Search response is XML');
+    } else {
+      fail('TorznabSearch', 'Search response is XML', `Got: ${body.slice(0, 100)}`);
+    }
+
+    if (body.includes('<channel>')) {
+      pass('TorznabSearch', '<channel> element present in search response');
+    } else {
+      fail('TorznabSearch', '<channel> element present in search response');
+    }
+  } catch (err) {
+    fail('TorznabSearch', 'search fetch', err.message);
+  }
+
+  // t=tvsearch (category-specific)
+  try {
+    const r = await fetch(
+      `${BASE_URL}/api/?t=tvsearch&q=breaking+bad&apikey=${encodeURIComponent(API_KEY)}`,
+      { signal: AbortSignal.timeout(TIMEOUT) }
+    );
+    if (r.status === 200) {
+      pass('TorznabSearch', 'tvsearch returns HTTP 200');
+    } else {
+      fail('TorznabSearch', 'tvsearch returns HTTP 200', `Got HTTP ${r.status}`);
+    }
+  } catch (err) {
+    fail('TorznabSearch', 'tvsearch fetch', err.message);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Suite: Mobile viewports (375×812 — iPhone 14)
+// ---------------------------------------------------------------------------
+
+async function suiteMobileViewports(browser) {
+  process.stderr.write('\n[Mobile Viewports — 375×812]\n');
+
+  const mobileContext = await browser.newContext({
+    viewport: { width: 375, height: 812 },
+    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+  });
+
+  const pages = [
+    { path: '/ui/test', name: 'test_ui', label: 'Test UI' },
+    { path: '/ui/builder', name: 'builder_ui', label: 'Builder UI' },
+    { path: '/ui/captcha-review', name: 'captcha_review', label: 'Captcha Review' },
+  ];
+
+  for (const p of pages) {
+    const page = await mobileContext.newPage();
+    const mobileErrors = [];
+    page.on('pageerror', err => mobileErrors.push(err.message));
+
+    try {
+      await page.goto(`${BASE_URL}${p.path}`, { waitUntil: 'networkidle', timeout: TIMEOUT });
+      await screenshot(page, `mobile_${p.name}`);
+
+      const html = await page.content();
+      if (noStacktrace(html)) {
+        pass('Mobile', `${p.label} — no stacktrace at 375px`);
+      } else {
+        fail('Mobile', `${p.label} — no stacktrace at 375px`, 'Stacktrace detected');
+      }
+
+      // Check that main content is not zero-height (layout collapse)
+      const mainHeight = await page.evaluate(() => {
+        const main = document.querySelector('main, [role="main"], .min-h-screen, body > div');
+        return main ? main.getBoundingClientRect().height : 0;
+      });
+      if (mainHeight > 50) {
+        pass('Mobile', `${p.label} — main content visible (${Math.round(mainHeight)}px)`);
+      } else {
+        fail('Mobile', `${p.label} — main content visible`, `Height only ${Math.round(mainHeight)}px — possible layout collapse`);
+      }
+
+      if (mobileErrors.length === 0) {
+        pass('Mobile', `${p.label} — no JS errors`);
+      } else {
+        fail('Mobile', `${p.label} — no JS errors`, mobileErrors.slice(0, 2).join(' | '));
+      }
+    } catch (err) {
+      fail('Mobile', `${p.label} — page load`, err.message);
+    } finally {
+      await page.close();
+    }
+  }
+
+  await mobileContext.close();
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -437,10 +638,13 @@ async function main() {
 
     await suiteHttpSmoke();
     await suiteTorznabXml();
+    await suiteTorznabSearch();
     await suiteTestUI(browser);
     await suiteBuilderUI(browser);
     await suiteTelegramUI(browser);
+    await suiteCaptchaReview(browser);
     await suiteLiveViewWS(browser);
+    await suiteMobileViewports(browser);
   } finally {
     if (browser) await browser.close();
   }
