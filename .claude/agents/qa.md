@@ -171,91 +171,105 @@ Verify:
 - `config/dev.exs` uses only localhost/dummy values — no real credentials
 - `config/test.exs` forces `Tailorr.Agents.Mock` as the agent backend
 
-### Phase 9 — Live browser QA
-
-Start the server and exercise the UI and API endpoints. Do this after all static analysis phases.
-
-**Step 1 — Start the server**
+### Phase 8b — Dependency audit
 
 ```bash
-# Start Phoenix in the background; log to /tmp/tailorr_qa.log
+# Elixir — known vulnerabilities in Hex packages
+mix deps.audit 2>/dev/null || echo "mix deps.audit not available (add :mix_audit to dev deps)"
+
+# Node.js browser service
+cd services/browser && npm audit --audit-level=moderate 2>/dev/null
+```
+
+Any `critical` or `high` severity CVE is **Critical**. `moderate` is **Major**. `low` is **Minor**.
+If `mix deps.audit` is not available, note it as **Skipped** and recommend adding `{:mix_audit, "~> 2.0", only: :dev, runtime: false}` to `mix.exs`.
+
+### Phase 9 — Live browser QA (Playwright)
+
+Runs real browser tests against a live Phoenix server using the Playwright script at `services/browser/qa_test.js`. This script tests HTTP status codes, Torznab XML validity, LiveView mounting and WebSocket handshake, form interactions, console errors, and uncaught JavaScript exceptions. Screenshots are saved to `/tmp/tailorr_qa_screenshots/`.
+
+**Step 1 — Start Phoenix**
+
+```bash
+cd /Users/david/workspace/Tailorr
 mix phx.server > /tmp/tailorr_qa.log 2>&1 &
 PHOENIX_PID=$!
-echo "Started Phoenix PID $PHOENIX_PID"
 
-# Wait up to 30 seconds for the server to accept connections
+# Wait up to 30 s for the app to accept connections
 for i in $(seq 1 30); do
-  curl -sf http://localhost:4000/health > /dev/null 2>&1 && break
+  curl -sf http://localhost:4000/ -o /dev/null 2>&1 && break
   sleep 1
 done
+
+# Check it actually started
+if ! curl -sf http://localhost:4000/ -o /dev/null 2>&1; then
+  echo "Phoenix did not start — aborting browser QA"
+  tail -30 /tmp/tailorr_qa.log
+  kill $PHOENIX_PID 2>/dev/null
+  # Report Critical and skip rest of phase
+fi
 ```
 
-If the server fails to start within 30 seconds, report **Critical** and skip browser checks. Tail `/tmp/tailorr_qa.log` to capture the startup error.
+If Phoenix fails to start, report **Critical** ("Phoenix server failed to start — see /tmp/tailorr_qa.log") and skip the Playwright run.
 
-**Step 2 — Endpoint smoke tests (curl)**
+**Step 2 — Run the Playwright QA script**
 
 ```bash
-# Root / LiveView app shell
-curl -sf -o /dev/null -w "%{http_code}" http://localhost:4000/
-# → expect 200
+cd /Users/david/workspace/Tailorr
+BASE_URL=http://localhost:4000 \
+SCREENSHOT_DIR=/tmp/tailorr_qa_screenshots \
+TIMEOUT_MS=12000 \
+  node services/browser/qa_test.js 2>/tmp/tailorr_qa_browser.log
+QA_EXIT=$?
 
-# Test UI
-curl -sf -o /dev/null -w "%{http_code}" http://localhost:4000/ui/test
-# → expect 200
+# Human-readable progress went to stderr (now in the log)
+cat /tmp/tailorr_qa_browser.log
 
-# Tracker Builder UI
-curl -sf -o /dev/null -w "%{http_code}" http://localhost:4000/ui/builder
-# → expect 200
-
-# Torznab API (no key → 401 or 403, not 500)
-curl -sf -o /dev/null -w "%{http_code}" "http://localhost:4000/api/torznab?t=caps"
-# → expect 200 (caps doesn't require auth) or 401 — never 500
-
-# Torznab search with invalid key → must return 401/403, not 500
-curl -sf -o /dev/null -w "%{http_code}" \
-  "http://localhost:4000/api/torznab?t=search&q=test&apikey=bad_key"
-# → expect 401 or 403
-
-# Health check endpoint (if configured)
-curl -sf http://localhost:4000/health 2>/dev/null || echo "No /health endpoint"
+# Structured JSON went to stdout — captured above as the script's output
 ```
 
-Report any non-2xx/4xx response (e.g. 500) as **Critical**.
+The script outputs JSON on stdout. Parse it for the QA report:
+- `checks[].status` is `"PASS"`, `"FAIL"`, or `"SKIP"`
+- `checks[].suite` identifies the test group (HTTP, Torznab, TestUI, BuilderUI, TelegramUI, LiveViewWS)
+- `checks[].name` is the check description
+- `checks[].detail` contains the failure reason or extra context
+- Exit code 0 = all passed, 1 = failures, 2 = fatal script error
 
-**Step 3 — Page content checks (WebFetch)**
+**Mapping browser QA results to report severity:**
 
-Fetch and inspect:
+| Suite | Failure condition | Severity |
+|---|---|---|
+| HTTP | Any route returns 5xx | Critical |
+| HTTP | Auth route returns wrong status (e.g. 500 instead of 401) | Critical |
+| Torznab | XML missing `<caps>` or malformed | Critical |
+| LiveViewWS | No WebSocket frames / no phx_reply | Critical |
+| TestUI | Elixir stacktrace in page HTML | Critical |
+| TestUI / BuilderUI | Uncaught JS errors | Major |
+| TestUI | Search submit crashes the page | Major |
+| BuilderUI | URL input not found | Major |
+| Any | Console errors | Minor |
 
-1. `http://localhost:4000/ui/test` — verify:
-   - Page title contains "Tailorr" or "Search"
-   - Tracker dropdown/select element is present (`<select` or `phx-` LiveView element)
-   - No Elixir stacktrace in the HTML (`ArgumentError`, `** (`, `FunctionClauseError`)
-   - No Phoenix debug error page (`Phoenix.Router.NoRouteError`, `debug_errors`)
-
-2. `http://localhost:4000/ui/builder` — verify:
-   - Builder form or URL input is present
-   - No stacktrace in the HTML
-
-3. `http://localhost:4000/api/torznab?t=caps` — verify:
-   - Response is valid XML (`<?xml` header present)
-   - `<caps>` element present
-   - `<server>` element with version present
-
-**Step 4 — Stop the server**
+**Step 3 — Stop Phoenix and collect logs**
 
 ```bash
 kill $PHOENIX_PID 2>/dev/null
 wait $PHOENIX_PID 2>/dev/null
-echo "Phoenix stopped"
+
+# Report any [error] lines that appeared during the browser run
+grep -E "^\[error\]|\*\* \(" /tmp/tailorr_qa.log | head -40
 ```
 
-Also collect and report any ERROR or WARNING lines from `/tmp/tailorr_qa.log` that appeared during the test run:
+Any `[error]` line in the Phoenix log during the browser run is a **Major** finding. Any stacktrace (`** (`) is **Critical**.
+
+**Step 4 — Report screenshots**
+
+List saved screenshots so the developer can inspect them:
 
 ```bash
-grep -E "^\[error\]|\[warning\]|\*\* \(" /tmp/tailorr_qa.log | head -40
+ls /tmp/tailorr_qa_screenshots/ 2>/dev/null || echo "No screenshots saved"
 ```
 
-Any `[error]` line during a smoke test is a **Major** finding. Any stacktrace (`** (`) is **Critical**.
+Include the list in the report's Green or Skipped section.
 
 ## Output format
 
@@ -276,7 +290,7 @@ X critical, Y major, Z minor findings. [one sentence overall assessment]
 
 ## Green (verified clean)
 - Phase 1 quality gates: FORMAT OK / LINT OK / TESTS OK (N passed, 0 failed)
-- Phase 9 browser QA: all endpoints 2xx, no stacktraces in pages, Torznab caps XML valid
+- Phase 9 browser QA: N/M Playwright checks passed, screenshots saved to /tmp/tailorr_qa_screenshots/, LiveView WS connected, no JS errors
 - [list each other phase that found no issues]
 
 ## Skipped

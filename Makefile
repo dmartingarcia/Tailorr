@@ -22,7 +22,7 @@ GID := $(shell id -g)
 .DEFAULT_GOAL := help
 
 .PHONY: help setup dev server browser dev-all build stop down clean \
-        test test-watch test-tracker test-coverage test-coverage-html lint format shell shell-db \
+        test test-watch test-tracker test-coverage test-coverage-html test-browser lint format shell shell-db \
         db-migrate db-rollback db-reset db-seed \
         assets-setup assets-build assets-deploy assets-watch \
         logs logs-app ps \
@@ -169,6 +169,39 @@ test-coverage-html: ## Generate HTML coverage report
 	$(RUN) mix coveralls.html
 	@echo ""
 	@echo "✓ Coverage report: cover/excoveralls.html"
+
+test-browser: ## Run Playwright browser QA (starts Phoenix automatically; HEADED=1 for visible browser)
+ifeq ($(DOCKER),1)
+	$(COMPOSE) up -d app
+	@sleep 5
+	$(COMPOSE) exec \
+		-e BASE_URL=http://app:4000 \
+		-e SCREENSHOT_DIR=/tmp/tailorr_qa_screenshots \
+		browser node qa_test.js
+else
+	@bash -c '\
+	  mix phx.server > /tmp/tailorr_qa.log 2>&1 & PHOENIX_PID=$$!; \
+	  echo "→ Phoenix started (PID $$PHOENIX_PID)"; \
+	  echo "→ Waiting for server..."; \
+	  for i in $$(seq 1 30); do curl -sf http://localhost:4000/ -o /dev/null 2>&1 && break; sleep 1; done; \
+	  if ! curl -sf http://localhost:4000/ -o /dev/null 2>&1; then \
+	    echo "✗ Phoenix failed to start — check /tmp/tailorr_qa.log"; \
+	    tail -20 /tmp/tailorr_qa.log; \
+	    kill $$PHOENIX_PID 2>/dev/null; exit 1; \
+	  fi; \
+	  echo "→ Running Playwright QA..."; \
+	  HEADED=$(HEADED) BASE_URL=http://localhost:4000 \
+	    SCREENSHOT_DIR=/tmp/tailorr_qa_screenshots \
+	    node services/browser/qa_test.js; \
+	  QA_EXIT=$$?; \
+	  kill $$PHOENIX_PID 2>/dev/null; wait $$PHOENIX_PID 2>/dev/null; \
+	  echo ""; \
+	  [ $$QA_EXIT -eq 0 ] \
+	    && echo "✓ Browser QA passed — screenshots: /tmp/tailorr_qa_screenshots/" \
+	    || echo "✗ Browser QA failed — screenshots: /tmp/tailorr_qa_screenshots/"; \
+	  exit $$QA_EXIT \
+	'
+endif
 
 lint: ## Run Credo + format check
 	$(RUN) mix do credo --strict, format --check-formatted
