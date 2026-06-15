@@ -16,7 +16,7 @@ defmodule Mix.Tasks.Tailorr.TestTracker do
 
   use Mix.Task
 
-  alias Tailorr.{TrackerLoader, SearchQuery}
+  alias Tailorr.{SearchQuery, TrackerLoader}
 
   @requirements ["app.start"]
 

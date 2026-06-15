@@ -25,7 +25,7 @@ defmodule Tailorr.Agents.Http do
 
   @behaviour Tailorr.Agents.Behaviour
 
-  alias Tailorr.{SearchQuery, Scraper}
+  alias Tailorr.{Scraper, SearchQuery}
 
   @default_timeout_ms 15_000
   @default_retries 2

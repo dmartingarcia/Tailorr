@@ -4,7 +4,7 @@ defmodule Tailorr.Downloaders.DonTorrent do
   Handles the complete flow: challenge → POW → validation → download URL.
   """
 
-  alias Tailorr.{Pow, Captcha}
+  alias Tailorr.{Captcha, Pow}
   require Logger
 
   @api_endpoint "/api_validate_pow.php"

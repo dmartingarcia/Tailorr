@@ -18,7 +18,8 @@ defmodule Tailorr.Captcha.Solvers.Telegram.Bot do
   use GenServer
   require Logger
 
-  alias Tailorr.{Repo, Captcha.TelegramChat}
+  alias Tailorr.Captcha.TelegramChat
+  alias Tailorr.Repo
 
   # ---- Public API ----
 
@@ -84,40 +85,47 @@ defmodule Tailorr.Captcha.Solvers.Telegram.Bot do
     if MapSet.size(state.registered_chats) == 0 do
       {:reply, {:error, :no_registered_chats}, state}
     else
-      caption =
-        "🔐 CAPTCHA challenge\n\n#{captcha_data[:message] || "Please solve this CAPTCHA."}\n\n⚠️ You must *reply to this message* with the answer (use Telegram's reply feature)."
-
-      {sent_messages, _failed} =
-        state.registered_chats
-        |> MapSet.to_list()
-        |> Enum.map(fn chat_id ->
-          case send_captcha_to_chat(state.bot_token, chat_id, captcha_data, caption) do
-            {:ok, message_id} -> {:ok, {chat_id, message_id}}
-            {:error, reason} -> {:error, {chat_id, reason}}
-          end
-        end)
-        |> Enum.split_with(&match?({:ok, _}, &1))
-
-      if sent_messages == [] do
-        {:reply, {:error, :send_failed}, state}
-      else
-        ref = make_ref()
-
-        messages = Enum.map(sent_messages, fn {:ok, pair} -> pair end)
-
-        pending_entry = %{messages: messages, from_pid: from_pid}
-
-        new_pending = Map.put(state.pending, ref, pending_entry)
-
-        new_msg_to_ref =
-          Enum.reduce(messages, state.message_id_to_ref, fn {_chat_id, message_id}, acc ->
-            Map.put(acc, message_id, ref)
-          end)
-
-        new_state = %{state | pending: new_pending, message_id_to_ref: new_msg_to_ref}
-        {:reply, {:ok, ref}, new_state}
-      end
+      broadcast_to_registered_chats(captcha_data, from_pid, state)
     end
+  end
+
+  defp broadcast_to_registered_chats(captcha_data, from_pid, state) do
+    caption =
+      "CAPTCHA challenge\n\n#{captcha_data[:message] || "Please solve this CAPTCHA."}\n\nYou must reply to this message with the answer (use Telegram's reply feature)."
+
+    {sent_messages, _failed} =
+      state.registered_chats
+      |> MapSet.to_list()
+      |> Enum.map(&send_to_chat(state.bot_token, &1, captcha_data, caption))
+      |> Enum.split_with(&match?({:ok, _}, &1))
+
+    if sent_messages == [] do
+      {:reply, {:error, :send_failed}, state}
+    else
+      ref = make_ref()
+      new_state = register_pending(state, sent_messages, from_pid, ref)
+      {:reply, {:ok, ref}, new_state}
+    end
+  end
+
+  defp send_to_chat(bot_token, chat_id, captcha_data, caption) do
+    case send_captcha_to_chat(bot_token, chat_id, captcha_data, caption) do
+      {:ok, message_id} -> {:ok, {chat_id, message_id}}
+      {:error, reason} -> {:error, {chat_id, reason}}
+    end
+  end
+
+  defp register_pending(state, sent_messages, from_pid, ref) do
+    messages = Enum.map(sent_messages, fn {:ok, pair} -> pair end)
+    pending_entry = %{messages: messages, from_pid: from_pid}
+    new_pending = Map.put(state.pending, ref, pending_entry)
+
+    new_msg_to_ref =
+      Enum.reduce(messages, state.message_id_to_ref, fn {_chat_id, message_id}, acc ->
+        Map.put(acc, message_id, ref)
+      end)
+
+    %{state | pending: new_pending, message_id_to_ref: new_msg_to_ref}
   end
 
   @impl true
@@ -198,7 +206,7 @@ defmodule Tailorr.Captcha.Solvers.Telegram.Bot do
       start_command?(message) ->
         handle_start(message, state)
 
-      is_captcha_reply?(message, state) ->
+      captcha_reply?(message, state) ->
         handle_captcha_reply(message, state)
 
       true ->
@@ -214,11 +222,11 @@ defmodule Tailorr.Captcha.Solvers.Telegram.Bot do
 
   defp start_command?(_), do: false
 
-  defp is_captcha_reply?(%{"reply_to_message" => %{"message_id" => message_id}}, state) do
+  defp captcha_reply?(%{"reply_to_message" => %{"message_id" => message_id}}, state) do
     Map.has_key?(state.message_id_to_ref, message_id)
   end
 
-  defp is_captcha_reply?(_, _), do: false
+  defp captcha_reply?(_, _), do: false
 
   defp handle_start(%{"chat" => %{"id" => chat_id}, "from" => from} = _message, state) do
     first_name = Map.get(from, "first_name", "there")

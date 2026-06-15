@@ -200,10 +200,9 @@ defmodule Tailorr.ML.CaptchaTrainer do
     output
     |> Nx.argmax(axis: -1)
     |> Nx.to_flat_list()
-    |> Enum.map(fn idx ->
+    |> Enum.map_join("", fn idx ->
       if idx < length(@charset), do: Enum.at(@charset, idx), else: ""
     end)
-    |> Enum.join()
     |> String.trim()
   end
 

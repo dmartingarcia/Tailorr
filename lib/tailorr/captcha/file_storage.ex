@@ -320,45 +320,53 @@ defmodule Tailorr.Captcha.FileStorage do
     tracker_base = Path.join(base_dir(), sanitize_tracker(tracker))
     classified_dir = Path.join(tracker_base, "classified")
 
-    categories =
-      if category do
-        [category]
-      else
-        if File.exists?(classified_dir) do
-          File.ls!(classified_dir)
-          |> Enum.filter(&File.dir?(Path.join(classified_dir, &1)))
-        else
-          []
-        end
-      end
+    categories = classified_categories(classified_dir, category)
 
-    Enum.flat_map(categories, fn cat ->
-      cat_dir = Path.join(classified_dir, cat)
-
-      if File.exists?(cat_dir) do
-        File.ls!(cat_dir)
-        |> Enum.filter(&String.ends_with?(&1, ".jpg"))
-        |> Enum.map(fn filename ->
-          filepath = Path.join(cat_dir, filename)
-          {uuid, solution} = parse_success_filename(filename)
-          metadata = load_metadata(filepath)
-
-          %{
-            tracker: tracker,
-            filename: filename,
-            uuid: uuid,
-            solution: solution,
-            category: cat,
-            path: filepath,
-            metadata: metadata,
-            inserted_at: file_mtime(filepath)
-          }
-        end)
-      else
-        []
-      end
-    end)
+    categories
+    |> Enum.flat_map(&list_category_files(tracker, classified_dir, &1))
     |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
+  end
+
+  defp classified_categories(classified_dir, nil) do
+    if File.exists?(classified_dir) do
+      classified_dir
+      |> File.ls!()
+      |> Enum.filter(&File.dir?(Path.join(classified_dir, &1)))
+    else
+      []
+    end
+  end
+
+  defp classified_categories(_classified_dir, category), do: [category]
+
+  defp list_category_files(tracker, classified_dir, cat) do
+    cat_dir = Path.join(classified_dir, cat)
+
+    if File.exists?(cat_dir) do
+      cat_dir
+      |> File.ls!()
+      |> Enum.filter(&String.ends_with?(&1, ".jpg"))
+      |> Enum.map(&build_classified_entry(tracker, cat_dir, cat, &1))
+    else
+      []
+    end
+  end
+
+  defp build_classified_entry(tracker, cat_dir, cat, filename) do
+    filepath = Path.join(cat_dir, filename)
+    {uuid, solution} = parse_success_filename(filename)
+    metadata = load_metadata(filepath)
+
+    %{
+      tracker: tracker,
+      filename: filename,
+      uuid: uuid,
+      solution: solution,
+      category: cat,
+      path: filepath,
+      metadata: metadata,
+      inserted_at: file_mtime(filepath)
+    }
   end
 
   @doc """
@@ -519,19 +527,12 @@ defmodule Tailorr.Captcha.FileStorage do
   defp load_metadata(image_path) do
     json_path = String.replace(image_path, ~r/\.jpg$/, ".json")
 
-    if File.exists?(json_path) do
-      case File.read(json_path) do
-        {:ok, content} ->
-          case Jason.decode(content, keys: :atoms) do
-            {:ok, data} -> data
-            _ -> %{}
-          end
-
-        _ ->
-          %{}
-      end
+    with true <- File.exists?(json_path),
+         {:ok, content} <- File.read(json_path),
+         {:ok, data} <- Jason.decode(content, keys: :atoms) do
+      data
     else
-      %{}
+      _ -> %{}
     end
   end
 
@@ -561,13 +562,11 @@ defmodule Tailorr.Captcha.FileStorage do
   end
 
   defp parse_success_filename(filename) do
-    case String.split(filename, "_") do
-      [uuid, solution_with_ext] ->
-        solution = String.replace(solution_with_ext, ~r/\.jpg$/, "")
-        {uuid, solution}
+    base = String.replace(filename, ~r/\.jpg$/, "")
 
-      [uuid] ->
-        {String.replace(uuid, ~r/\.jpg$/, ""), nil}
+    case String.split(base, "_", parts: 2) do
+      [uuid, solution] -> {uuid, solution}
+      [uuid] -> {uuid, nil}
     end
   end
 

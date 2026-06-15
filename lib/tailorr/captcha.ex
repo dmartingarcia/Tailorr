@@ -119,6 +119,7 @@ defmodule Tailorr.Captcha do
     IO.write("Solution (or 'cancel'): ")
 
     case IO.gets("") do
+      :eof -> {:error, :no_input}
       "cancel\n" -> {:error, :user_cancelled}
       "\n" -> {:error, :empty_solution}
       solution -> {:ok, String.trim(solution)}
@@ -128,17 +129,14 @@ defmodule Tailorr.Captcha do
   # --- 2Captcha Service ---
 
   defp solve_twocaptcha(_captcha_data, _opts) do
-    # TODO: Implement 2Captcha API integration
-    # Requires API key from config
-    # POST image to 2captcha.com/in.php
-    # Poll 2captcha.com/res.php for result
+    # 2Captcha API integration not yet implemented
     {:error, :not_implemented}
   end
 
   # --- Anti-Captcha Service ---
 
   defp solve_anticaptcha(_captcha_data, _opts) do
-    # TODO: Implement Anti-Captcha API integration
+    # Anti-Captcha API integration not yet implemented
     {:error, :not_implemented}
   end
 

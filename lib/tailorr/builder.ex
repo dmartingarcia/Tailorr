@@ -11,7 +11,7 @@ defmodule Tailorr.Builder do
   - Testing selectors against live pages
   """
 
-  alias Tailorr.Builder.{YamlGenerator, Validator}
+  alias Tailorr.Builder.{Validator, YamlGenerator}
 
   @definitions_path "tracker_definitions"
 
@@ -73,7 +73,7 @@ defmodule Tailorr.Builder do
   end
 
   defp build_file_path(tracker_id) do
-    sanitized_id = String.replace(tracker_id, ~r/[^a-z0-9_-]/, "_")
+    sanitized_id = String.replace(tracker_id, ~r/[^a-zA-Z0-9_-]/, "_")
     Path.join([@definitions_path, "public", "#{sanitized_id}.yml"])
   end
 

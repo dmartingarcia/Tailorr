@@ -36,8 +36,8 @@ defmodule Tailorr.Agents.Auth do
 
   @behaviour Tailorr.Agents.Behaviour
 
-  alias Tailorr.{SearchQuery}
-  alias Tailorr.Agents.{Http, Cloudflare}
+  alias Tailorr.Agents.{Cloudflare, Http}
+  alias Tailorr.SearchQuery
 
   @impl true
   def capabilities, do: [:search, :test_connection, :authentication, :private_tracker]
@@ -83,6 +83,14 @@ defmodule Tailorr.Agents.Auth do
     method = Map.get(config, "login_method", "POST")
     form = build_login_form(config)
 
+    if String.starts_with?(url, "http") do
+      do_login_request(url, method, form, config)
+    else
+      {:error, :invalid_base_url}
+    end
+  end
+
+  defp do_login_request(url, method, form, config) do
     result =
       case method do
         "GET" -> Req.get(url, params: form)

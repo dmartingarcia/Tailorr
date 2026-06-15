@@ -149,18 +149,18 @@ defmodule Tailorr.Normalizer do
   end
 
   defp size_multiplier(unit) do
-    case String.downcase(unit) do
-      "kb" -> 1_000
-      "kib" -> 1_024
-      "mb" -> 1_000_000
-      "mib" -> 1_048_576
-      "gb" -> 1_000_000_000
-      "gib" -> 1_073_741_824
-      "tb" -> 1_000_000_000_000
-      "tib" -> 1_099_511_627_776
-      _ -> 1
-    end
+    unit |> String.downcase() |> multiplier_for_unit()
   end
+
+  defp multiplier_for_unit("kb"), do: 1_000
+  defp multiplier_for_unit("kib"), do: 1_024
+  defp multiplier_for_unit("mb"), do: 1_000_000
+  defp multiplier_for_unit("mib"), do: 1_048_576
+  defp multiplier_for_unit("gb"), do: 1_000_000_000
+  defp multiplier_for_unit("gib"), do: 1_073_741_824
+  defp multiplier_for_unit("tb"), do: 1_000_000_000_000
+  defp multiplier_for_unit("tib"), do: 1_099_511_627_776
+  defp multiplier_for_unit(_), do: 1
 
   defp parse_relative_date(text) do
     # Extract number and unit from "X [units] ago"

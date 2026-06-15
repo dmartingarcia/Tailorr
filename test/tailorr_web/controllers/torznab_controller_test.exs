@@ -11,7 +11,7 @@ defmodule TailorrWeb.TorznabControllerTest do
 
   describe "GET /api?t=caps" do
     test "returns capabilities XML" do
-      # TODO: Implement when Phoenix router is ready
+      # Phoenix controller test - uses Tracker.search directly, see below
       # response = conn |> get("/api?t=caps&apikey=test") |> response(200)
       # assert response =~ "<caps>"
       # assert response =~ "<server title=\"Tailorr\""

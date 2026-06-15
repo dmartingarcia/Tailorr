@@ -31,21 +31,50 @@ defmodule Tailorr.Torznab do
   end
 
   defp build_item(%Result{} = result) do
+    link = escape_xml(result.download_url || result.magnet_url || result.detail_url || "")
+    attrs = build_optional_attrs(result)
+
     """
         <item>
           <title>#{escape_xml(result.title)}</title>
           <guid>#{result.tracker_id}-#{:erlang.phash2(result.title)}</guid>
-          <link>#{escape_xml(result.download_url || result.magnet_url || result.detail_url || "")}</link>
-          #{if result.download_url, do: "<enclosure url=\"#{escape_xml(result.download_url)}\" type=\"application/x-bittorrent\"/>", else: ""}
-          #{if result.magnet_url, do: "<torznab:attr name=\"magneturl\" value=\"#{escape_xml(result.magnet_url)}\"/>", else: ""}
-          #{if result.size_bytes, do: "<torznab:attr name=\"size\" value=\"#{result.size_bytes}\"/>", else: ""}
-          #{if result.seeders, do: "<torznab:attr name=\"seeders\" value=\"#{result.seeders}\"/>", else: ""}
-          #{if result.leechers, do: "<torznab:attr name=\"peers\" value=\"#{result.leechers}\"/>", else: ""}
-          #{if result.category, do: "<torznab:attr name=\"category\" value=\"#{escape_xml(result.category)}\"/>", else: ""}
-          #{if result.quality, do: "<torznab:attr name=\"quality\" value=\"#{escape_xml(result.quality)}\"/>", else: ""}
+          <link>#{link}</link>
+          #{attrs}
           <torznab:attr name=\"indexer\" value=\"#{result.tracker_id}\"/>
         </item>
     """
+  end
+
+  defp build_optional_attrs(result) do
+    [
+      optional_enclosure(result.download_url),
+      optional_attr("magneturl", result.magnet_url),
+      optional_int_attr("size", result.size_bytes),
+      optional_int_attr("seeders", result.seeders),
+      optional_int_attr("peers", result.leechers),
+      optional_attr("category", result.category),
+      optional_attr("quality", result.quality)
+    ]
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join("\n          ")
+  end
+
+  defp optional_enclosure(nil), do: ""
+
+  defp optional_enclosure(url) do
+    "<enclosure url=\"#{escape_xml(url)}\" type=\"application/x-bittorrent\"/>"
+  end
+
+  defp optional_attr(_name, nil), do: ""
+
+  defp optional_attr(name, value) do
+    "<torznab:attr name=\"#{name}\" value=\"#{escape_xml(value)}\"/>"
+  end
+
+  defp optional_int_attr(_name, nil), do: ""
+
+  defp optional_int_attr(name, value) do
+    "<torznab:attr name=\"#{name}\" value=\"#{value}\"/>"
   end
 
   defp escape_xml(nil), do: ""

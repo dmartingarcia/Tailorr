@@ -1,7 +1,8 @@
 defmodule TailorrWeb.Settings.TelegramLive do
   use TailorrWeb, :live_view
 
-  alias Tailorr.{Repo, Captcha.TelegramChat}
+  alias Tailorr.Captcha.TelegramChat
+  alias Tailorr.Repo
 
   @impl true
   def mount(_params, _session, socket) do

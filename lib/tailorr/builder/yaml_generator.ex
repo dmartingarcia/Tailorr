@@ -14,24 +14,40 @@ defmodule Tailorr.Builder.YamlGenerator do
       {:ok, "id: test\\nname: Test\\n..."}
   """
   def build(selectors, config) when is_map(selectors) do
-    yaml = """
-    id: #{config[:id] || "new_tracker"}
-    name: #{config[:name] || "New Tracker"}
-    agent: #{config[:agent] || "http"}
+    {:ok, render_yaml(selectors, config)}
+  end
+
+  defp render_yaml(selectors, config) do
+    id = config[:id] || "new_tracker"
+    name = config[:name] || "New Tracker"
+    agent = config[:agent] || "http"
+    search_url = config[:search_url] || "https://example.com/search?q={query}"
+    result_rows = config[:result_rows] || "tr.result"
+    fields = render_fields(selectors)
+
+    """
+    id: #{id}
+    name: #{name}
+    agent: #{agent}
 
     search:
-      url: "#{config[:search_url] || "https://example.com/search?q={query}"}"
+      url: "#{search_url}"
 
     parsing:
-      result_rows: "#{config[:result_rows] || "tr.result"}"
+      result_rows: "#{result_rows}"
       fields:
-        title: "#{selectors["title"] || "td.title a"}"
-        download_url: "#{selectors["download"] || "td.download a::attr(href)"}"
-        size: "#{selectors["size"] || "td.size"}"
-        seeders: "#{selectors["seeders"] || "td.seeds"}"
-        leechers: "#{selectors["leechers"] || "td.leeches"}"
+    #{fields}
     """
+  end
 
-    {:ok, yaml}
+  defp render_fields(selectors) do
+    [
+      {"title", selectors["title"] || "td.title a"},
+      {"download_url", selectors["download"] || "td.download a::attr(href)"},
+      {"size", selectors["size"] || "td.size"},
+      {"seeders", selectors["seeders"] || "td.seeds"},
+      {"leechers", selectors["leechers"] || "td.leeches"}
+    ]
+    |> Enum.map_join("\n", fn {key, val} -> "        #{key}: \"#{val}\"" end)
   end
 end

@@ -100,70 +100,86 @@ defmodule Tailorr.Captcha.SmartSolver do
     confidence_threshold = Keyword.get(opts, :confidence_threshold, 0.9)
     fallback = Keyword.get(opts, :fallback, :telegram)
 
-    Logger.info("🤖 Trying ML solver...")
+    Logger.info("Trying ML solver...")
 
     case Captcha.solve(captcha_data, :ml) do
       {:ok, prediction, metadata} ->
-        confidence = Map.get(metadata, :confidence, 0.0)
-
-        if confidence >= confidence_threshold do
-          Logger.info("✅ ML confident (#{Float.round(confidence * 100, 1)}%): #{prediction}")
-          {:ok, prediction, Map.merge(metadata, %{solver: :ml, confidence: confidence})}
-        else
-          Logger.info("⚠️  ML uncertain (#{Float.round(confidence * 100, 1)}%), asking user...")
-
-          # ML no está seguro, preguntar a usuario
-          case solve_with_user(captcha_data, fallback) do
-            {:ok, user_solution} ->
-              # Usuario respondió, verificar si ML acertó
-              success = prediction == user_solution
-
-              if success do
-                Logger.info("✅ ML was correct! (but low confidence)")
-              else
-                Logger.info("❌ ML was wrong. User: #{user_solution}, ML: #{prediction}")
-              end
-
-              {:ok, user_solution,
-               %{
-                 solver: fallback,
-                 ml_prediction: prediction,
-                 ml_confidence: confidence,
-                 verified_by_user: true,
-                 ml_was_correct: success
-               }}
-
-            {:error, _} ->
-              # Usuario no pudo/quiso responder, usar predicción de ML
-              Logger.warning("User failed, falling back to ML prediction")
-              {:ok, prediction, Map.merge(metadata, %{solver: :ml, fallback: true})}
-          end
-        end
+        handle_ml_with_metadata(
+          captcha_data,
+          prediction,
+          metadata,
+          confidence_threshold,
+          fallback
+        )
 
       {:ok, prediction} ->
-        # Sin metadata de confianza, asumir baja confianza
-        Logger.info("🤖 ML returned prediction without confidence, asking user...")
-
-        case solve_with_user(captcha_data, fallback) do
-          {:ok, user_solution} ->
-            {:ok, user_solution,
-             %{solver: fallback, ml_prediction: prediction, verified_by_user: true}}
-
-          {:error, _} ->
-            {:ok, prediction, %{solver: :ml, fallback: true}}
-        end
+        handle_ml_without_metadata(captcha_data, prediction, fallback)
 
       {:error, reason} ->
-        Logger.warning("ML failed: #{inspect(reason)}, asking user...")
+        handle_ml_failure(captcha_data, reason, fallback)
+    end
+  end
 
-        # ML falló completamente, ir directo a usuario
-        case solve_with_user(captcha_data, fallback) do
-          {:ok, solution} ->
-            {:ok, solution, %{solver: fallback, ml_failed: true}}
+  defp handle_ml_with_metadata(captcha_data, prediction, metadata, confidence_threshold, fallback) do
+    confidence = Map.get(metadata, :confidence, 0.0)
 
-          {:error, _} = error ->
-            error
-        end
+    if confidence >= confidence_threshold do
+      Logger.info("ML confident (#{Float.round(confidence * 100, 1)}%): #{prediction}")
+      {:ok, prediction, Map.merge(metadata, %{solver: :ml, confidence: confidence})}
+    else
+      Logger.info("ML uncertain (#{Float.round(confidence * 100, 1)}%), asking user...")
+      ask_user_after_uncertain_ml(captcha_data, prediction, confidence, metadata, fallback)
+    end
+  end
+
+  defp ask_user_after_uncertain_ml(captcha_data, prediction, confidence, metadata, fallback) do
+    case solve_with_user(captcha_data, fallback) do
+      {:ok, user_solution} ->
+        success = prediction == user_solution
+        log_ml_vs_user(success, user_solution, prediction)
+
+        {:ok, user_solution,
+         %{
+           solver: fallback,
+           ml_prediction: prediction,
+           ml_confidence: confidence,
+           verified_by_user: true,
+           ml_was_correct: success
+         }}
+
+      {:error, _} ->
+        Logger.warning("User failed, falling back to ML prediction")
+        {:ok, prediction, Map.merge(metadata, %{solver: :ml, fallback: true})}
+    end
+  end
+
+  defp log_ml_vs_user(true, _user_solution, _prediction) do
+    Logger.info("ML was correct! (but low confidence)")
+  end
+
+  defp log_ml_vs_user(false, user_solution, prediction) do
+    Logger.info("ML was wrong. User: #{user_solution}, ML: #{prediction}")
+  end
+
+  defp handle_ml_without_metadata(captcha_data, prediction, fallback) do
+    Logger.info("ML returned prediction without confidence, asking user...")
+
+    case solve_with_user(captcha_data, fallback) do
+      {:ok, user_solution} ->
+        {:ok, user_solution,
+         %{solver: fallback, ml_prediction: prediction, verified_by_user: true}}
+
+      {:error, _} ->
+        {:ok, prediction, %{solver: :ml, fallback: true}}
+    end
+  end
+
+  defp handle_ml_failure(captcha_data, reason, fallback) do
+    Logger.warning("ML failed: #{inspect(reason)}, asking user...")
+
+    case solve_with_user(captcha_data, fallback) do
+      {:ok, solution} -> {:ok, solution, %{solver: fallback, ml_failed: true}}
+      {:error, _} = error -> error
     end
   end
 
@@ -211,86 +227,79 @@ defmodule Tailorr.Captcha.SmartSolver do
 
   # Guarda resultado usando FileStorage
   defp save_result(captcha_data, result, elapsed_ms) do
-    # Obtener tracker de metadata o usar "unknown"
     tracker = get_tracker(captcha_data)
+    do_save_result(captcha_data, tracker, result, elapsed_ms)
+  end
 
-    case result do
-      {:ok, solution, metadata} ->
-        solver = Map.get(metadata, :solver, :unknown)
-        ml_prediction = Map.get(metadata, :ml_prediction)
-        ml_confidence = Map.get(metadata, :ml_confidence)
-        verified_by_user = Map.get(metadata, :verified_by_user, false)
-        ml_was_correct = Map.get(metadata, :ml_was_correct)
+  defp do_save_result(captcha_data, tracker, {:ok, solution, metadata}, elapsed_ms) do
+    file_metadata = build_file_metadata(metadata, elapsed_ms)
+    persist_by_outcome(captcha_data, tracker, solution, file_metadata, metadata)
+  end
 
-        file_metadata = %{
-          solver: solver,
-          ml_prediction: ml_prediction,
-          ml_confidence: ml_confidence,
-          verified_by_user: verified_by_user,
-          response_time_ms: elapsed_ms,
-          timestamp: DateTime.utc_now() |> DateTime.to_iso8601()
-        }
+  defp do_save_result(captcha_data, tracker, {:ok, solution}, elapsed_ms) do
+    FileStorage.save_success(captcha_data, solution, tracker, %{
+      solver: :ml,
+      response_time_ms: elapsed_ms
+    })
+  end
 
-        cond do
-          # ML acertó (verificado por usuario)
-          ml_was_correct == true ->
-            FileStorage.save_success(captcha_data, solution, tracker, file_metadata)
+  defp do_save_result(captcha_data, tracker, {:error, _reason}, elapsed_ms) do
+    FileStorage.save_failure(captcha_data, tracker, %{
+      error: true,
+      response_time_ms: elapsed_ms
+    })
+  end
 
-          # ML falló (usuario corrigió)
-          ml_was_correct == false ->
-            # Guardar el fallo de ML
-            FileStorage.save_failure(
-              captcha_data,
-              tracker,
-              Map.put(file_metadata, :ml_failed, true)
-            )
+  defp build_file_metadata(metadata, elapsed_ms) do
+    %{
+      solver: Map.get(metadata, :solver, :unknown),
+      ml_prediction: Map.get(metadata, :ml_prediction),
+      ml_confidence: Map.get(metadata, :ml_confidence),
+      verified_by_user: Map.get(metadata, :verified_by_user, false),
+      response_time_ms: elapsed_ms,
+      timestamp: DateTime.utc_now() |> DateTime.to_iso8601()
+    }
+  end
 
-            # Y guardar la solución correcta del usuario
-            FileStorage.save_success(
-              captcha_data,
-              solution,
-              tracker,
-              Map.put(file_metadata, :source, :user)
-            )
+  defp persist_by_outcome(captcha_data, tracker, solution, file_metadata, metadata) do
+    solver = file_metadata.solver
+    ml_was_correct = Map.get(metadata, :ml_was_correct)
+    ml_confidence = file_metadata.ml_confidence
 
-          # Solución vino del usuario directamente (alta calidad)
-          solver in [:telegram, :manual] ->
-            FileStorage.save_success(
-              captcha_data,
-              solution,
-              tracker,
-              Map.put(file_metadata, :high_quality, true)
-            )
+    cond do
+      ml_was_correct == true ->
+        FileStorage.save_success(captcha_data, solution, tracker, file_metadata)
 
-          # ML dio solución sin verificar
-          (solver == :ml and ml_confidence) && ml_confidence >= 0.9 ->
-            FileStorage.save_success(captcha_data, solution, tracker, file_metadata)
+      ml_was_correct == false ->
+        FileStorage.save_failure(captcha_data, tracker, Map.put(file_metadata, :ml_failed, true))
 
-          # ML con baja confianza, guardar como pendiente
-          solver == :ml ->
-            FileStorage.save_pending(
-              captcha_data,
-              tracker,
-              Map.put(file_metadata, :needs_verification, true)
-            )
+        FileStorage.save_success(
+          captcha_data,
+          solution,
+          tracker,
+          Map.put(file_metadata, :source, :user)
+        )
 
-          true ->
-            :ok
-        end
+      solver in [:telegram, :manual] ->
+        FileStorage.save_success(
+          captcha_data,
+          solution,
+          tracker,
+          Map.put(file_metadata, :high_quality, true)
+        )
 
-      {:ok, solution} ->
-        # Sin metadata, asumir ML exitoso
-        FileStorage.save_success(captcha_data, solution, tracker, %{
-          solver: :ml,
-          response_time_ms: elapsed_ms
-        })
+      solver == :ml and is_number(ml_confidence) and ml_confidence >= 0.9 ->
+        FileStorage.save_success(captcha_data, solution, tracker, file_metadata)
 
-      {:error, _reason} ->
-        # Error total, guardar como fallo
-        FileStorage.save_failure(captcha_data, tracker, %{
-          error: true,
-          response_time_ms: elapsed_ms
-        })
+      solver == :ml ->
+        FileStorage.save_pending(
+          captcha_data,
+          tracker,
+          Map.put(file_metadata, :needs_verification, true)
+        )
+
+      true ->
+        :ok
     end
   end
 

@@ -94,20 +94,20 @@ defmodule Tailorr.Captcha.Solvers.ML do
   def solve(captcha_data, opts \\ []) do
     learning_mode = Keyword.get(opts, :learning_mode, get_config(:learning_mode, true))
 
-    case prepare_image(captcha_data) do
-      {:ok, image_path} ->
-        case predict(image_path, opts) do
-          {:ok, prediction} ->
-            if learning_mode, do: save_training_example(captcha_data, prediction)
-            cleanup_temp(image_path)
-            {:ok, prediction}
+    with {:ok, image_path} <- prepare_image(captcha_data) do
+      run_predict(image_path, captcha_data, learning_mode, opts)
+    end
+  end
 
-          {:error, _} = error ->
-            cleanup_temp(image_path)
-            error
-        end
+  defp run_predict(image_path, captcha_data, learning_mode, opts) do
+    case predict(image_path, opts) do
+      {:ok, prediction} ->
+        if learning_mode, do: save_training_example(captcha_data, prediction)
+        cleanup_temp(image_path)
+        {:ok, prediction}
 
       {:error, _} = error ->
+        cleanup_temp(image_path)
         error
     end
   end
@@ -229,6 +229,14 @@ defmodule Tailorr.Captcha.Solvers.ML do
   # Private functions
 
   defp prepare_image(%{image_type: :url, image: url}) do
+    if String.starts_with?(url, "http") do
+      download_image(url)
+    else
+      {:error, {:invalid_url, url}}
+    end
+  end
+
+  defp download_image(url) do
     temp_path = temp_file("ml_captcha", ".png")
 
     case Req.get(url) do

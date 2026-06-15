@@ -31,7 +31,7 @@ defmodule Tailorr.Agents.Api do
 
   @behaviour Tailorr.Agents.Behaviour
 
-  alias Tailorr.{SearchQuery, Normalizer}
+  alias Tailorr.{Normalizer, SearchQuery}
 
   @impl true
   def capabilities, do: [:search, :test_connection, :structured_api]
@@ -53,8 +53,9 @@ defmodule Tailorr.Agents.Api do
     url = config["base_url"]
     headers = build_headers(config)
     timeout = Map.get(config, "timeout_ms", 10_000)
+    retries = Map.get(config, "retries", 3)
 
-    case Req.get(url, headers: headers, receive_timeout: timeout) do
+    case Req.get(url, headers: headers, receive_timeout: timeout, max_retries: retries) do
       {:ok, %{status: s}} when s in 200..299 -> :ok
       {:ok, %{status: s}} -> {:error, {:http_error, s}}
       {:error, r} -> {:error, r}
@@ -65,10 +66,11 @@ defmodule Tailorr.Agents.Api do
 
   defp execute_request(config, url, headers) do
     timeout = Map.get(config, "timeout_ms", 10_000)
+    retries = Map.get(config, "retries", 3)
 
     case Map.get(config, "method", "GET") do
-      "POST" -> Req.post(url, headers: headers, receive_timeout: timeout)
-      _ -> Req.get(url, headers: headers, receive_timeout: timeout)
+      "POST" -> Req.post(url, headers: headers, receive_timeout: timeout, max_retries: retries)
+      _ -> Req.get(url, headers: headers, receive_timeout: timeout, max_retries: retries)
     end
   end
 

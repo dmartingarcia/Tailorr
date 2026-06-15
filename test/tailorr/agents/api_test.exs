@@ -239,7 +239,8 @@ defmodule Tailorr.Agents.ApiTest do
       config = %{
         "id" => "test",
         "base_url" => endpoint_url(bypass),
-        "api_format" => "json"
+        "api_format" => "json",
+        "retries" => 0
       }
 
       query = %SearchQuery{query: "test"}

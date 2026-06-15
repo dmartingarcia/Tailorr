@@ -1,15 +1,17 @@
 defmodule Tailorr.Captcha.Solvers.Telegram.BotTest do
   use ExUnit.Case, async: false
 
+  alias Ecto.Adapters.SQL.Sandbox
   alias Tailorr.Captcha.Solvers.Telegram.Bot
-  alias Tailorr.{Repo, Captcha.TelegramChat}
+  alias Tailorr.Captcha.TelegramChat
+  alias Tailorr.Repo
 
   setup do
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(Repo)
-    Ecto.Adapters.SQL.Sandbox.mode(Repo, {:shared, self()})
+    :ok = Sandbox.checkout(Repo)
+    Sandbox.mode(Repo, {:shared, self()})
 
     on_exit(fn ->
-      Ecto.Adapters.SQL.Sandbox.checkin(Repo)
+      Sandbox.checkin(Repo)
     end)
 
     :ok
@@ -78,15 +80,15 @@ defmodule Tailorr.Captcha.Solvers.Telegram.BotTest do
     end
 
     test "loads only valid chat_id records" do
-      insert_chat(%{chat_id: 12345})
-      insert_chat(%{chat_id: 67890})
+      insert_chat(%{chat_id: 12_345})
+      insert_chat(%{chat_id: 67_890})
 
       start_supervised!({Bot, [bot_token: "test_token"]})
 
       chats = Bot.registered_chats()
       assert length(chats) == 2
-      assert 12345 in chats
-      assert 67890 in chats
+      assert 12_345 in chats
+      assert 67_890 in chats
     end
 
     test "starts with empty set when no records exist" do

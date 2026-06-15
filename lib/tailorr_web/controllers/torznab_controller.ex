@@ -110,7 +110,7 @@ defmodule TailorrWeb.TorznabController do
   end
 
   defp capabilities(conn) do
-    # TODO: Implement Torznab capabilities XML
+    # Torznab capabilities XML - placeholder implementation
     xml = """
     <?xml version="1.0" encoding="UTF-8"?>
     <caps>

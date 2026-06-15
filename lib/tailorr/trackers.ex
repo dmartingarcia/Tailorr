@@ -13,7 +13,7 @@ defmodule Tailorr.Trackers do
   """
 
   alias Tailorr.SearchQuery
-  alias Tailorr.Trackers.{Tracker, Supervisor}
+  alias Tailorr.Trackers.{Supervisor, Tracker}
 
   require Logger
 
@@ -49,20 +49,18 @@ defmodule Tailorr.Trackers do
   end
 
   def search(tracker_id, %SearchQuery{} = query) do
-    try do
-      results = Tracker.search(tracker_id, query)
-      {:ok, results}
-    catch
-      :exit, {:noproc, _} ->
-        {:error, :tracker_not_found}
+    results = Tracker.search(tracker_id, query)
+    {:ok, results}
+  catch
+    :exit, {:noproc, _} ->
+      {:error, :tracker_not_found}
 
-      :exit, {:timeout, _} ->
-        {:error, :timeout}
+    :exit, {:timeout, _} ->
+      {:error, :timeout}
 
-      kind, reason ->
-        Logger.error("Search failed for #{tracker_id}: #{inspect({kind, reason})}")
-        {:error, :search_failed}
-    end
+    kind, reason ->
+      Logger.error("Search failed for #{tracker_id}: #{inspect({kind, reason})}")
+      {:error, :search_failed}
   end
 
   @doc """
@@ -107,14 +105,12 @@ defmodule Tailorr.Trackers do
       {:ok, %{"id" => "nyaa", "name" => "Nyaa", ...}}
   """
   def get_definition(tracker_id) do
-    try do
-      case Tracker.status(tracker_id) do
-        {:ok, status} -> {:ok, status.config}
-        {:error, _} = error -> error
-      end
-    catch
-      :exit, {:noproc, _} -> {:error, :not_found}
+    case Tracker.status(tracker_id) do
+      {:ok, status} -> {:ok, status.config}
+      {:error, _} = error -> error
     end
+  catch
+    :exit, {:noproc, _} -> {:error, :not_found}
   end
 
   @doc """
@@ -128,33 +124,29 @@ defmodule Tailorr.Trackers do
       :ok
   """
   def test_connection(tracker_id) do
-    try do
-      Tracker.test_connection(tracker_id)
-    catch
-      :exit, {:noproc, _} -> {:error, :tracker_not_found}
-    end
+    Tracker.test_connection(tracker_id)
+  catch
+    :exit, {:noproc, _} -> {:error, :tracker_not_found}
   end
 
   # Private helpers
 
   defp get_tracker_info(tracker_id) do
-    try do
-      case Tracker.status(tracker_id) do
-        {:ok, status} ->
-          %{
-            id: tracker_id,
-            name: status.config["name"] || tracker_id,
-            agent: status.config["agent"] || "http",
-            enabled: status.config["enabled"] != false,
-            last_search_at: status.last_search_at,
-            failure_count: status.failure_count
-          }
+    case Tracker.status(tracker_id) do
+      {:ok, status} ->
+        %{
+          id: tracker_id,
+          name: status.config["name"] || tracker_id,
+          agent: status.config["agent"] || "http",
+          enabled: status.config["enabled"] != false,
+          last_search_at: status.last_search_at,
+          failure_count: status.failure_count
+        }
 
-        {:error, _} ->
-          nil
-      end
-    catch
-      :exit, _ -> nil
+      {:error, _} ->
+        nil
     end
+  catch
+    :exit, _ -> nil
   end
 end

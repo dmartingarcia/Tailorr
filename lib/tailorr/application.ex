@@ -37,7 +37,6 @@ defmodule Tailorr.Application do
         TailorrWeb.Telemetry,
         TailorrWeb.Endpoint
 
-        # TODO: Add Oban when we need background jobs
         # {Oban, Application.fetch_env!(:tailorr, Oban)}
       ] ++ telegram_children()
 

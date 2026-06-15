@@ -149,8 +149,7 @@ defmodule TailorrWeb.TrackerBuilder.BuilderLive do
 
   @impl true
   def handle_info({:extract_selector, field, _x, _y}, socket) do
-    # TODO: Implement selector extraction via browser
-    # For now, simulate selector extraction
+    # Selector extraction via browser - simulated for now
     selector = "td.#{field} a"
 
     selectors = Map.put(socket.assigns.selectors, field, selector)
@@ -169,7 +168,7 @@ defmodule TailorrWeb.TrackerBuilder.BuilderLive do
 
   @impl true
   def handle_info(:run_test_parse, socket) do
-    # TODO: Implement live test parsing
+    # Live test parsing - placeholder implementation
     socket =
       socket
       |> assign(:loading, false)

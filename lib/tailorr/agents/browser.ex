@@ -27,9 +27,10 @@ defmodule Tailorr.Agents.Browser do
 
   @behaviour Tailorr.Agents.Behaviour
 
-  alias Tailorr.{SearchQuery, Scraper}
   alias Tailorr.Agents.Cloudflare
   alias Tailorr.Browser.Port, as: BrowserPort
+  alias Tailorr.Scraper
+  alias Tailorr.SearchQuery
 
   @impl true
   def capabilities, do: [:search, :test_connection, :javascript, :screenshot]

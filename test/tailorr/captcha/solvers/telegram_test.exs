@@ -1,16 +1,17 @@
 defmodule Tailorr.Captcha.Solvers.TelegramTest do
   use ExUnit.Case, async: false
 
+  alias Ecto.Adapters.SQL.Sandbox
   alias Tailorr.Captcha.Solvers.Telegram
   alias Tailorr.Captcha.Solvers.Telegram.Bot
   alias Tailorr.Repo
 
   setup do
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(Repo)
-    Ecto.Adapters.SQL.Sandbox.mode(Repo, {:shared, self()})
+    :ok = Sandbox.checkout(Repo)
+    Sandbox.mode(Repo, {:shared, self()})
 
     on_exit(fn ->
-      Ecto.Adapters.SQL.Sandbox.checkin(Repo)
+      Sandbox.checkin(Repo)
     end)
 
     :ok

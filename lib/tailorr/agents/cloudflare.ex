@@ -24,7 +24,7 @@ defmodule Tailorr.Agents.Cloudflare do
 
   @behaviour Tailorr.Agents.Behaviour
 
-  alias Tailorr.{SearchQuery, Scraper}
+  alias Tailorr.{Scraper, SearchQuery}
 
   @flaresolverr_path "/v1"
   @default_timeout_ms 60_000
@@ -66,41 +66,39 @@ defmodule Tailorr.Agents.Cloudflare do
       "maxTimeout" => timeout
     }
 
-    case Req.post(flare_url, json: payload, receive_timeout: timeout + 5_000) do
-      {:ok, %{status: 200, body: body}} when is_map(body) ->
-        html = get_in(body, ["solution", "response"])
+    Req.post(flare_url, json: payload, receive_timeout: timeout + 5_000)
+    |> parse_flare_response()
+  end
 
-        if cloudflare_challenge?(html) do
-          {:error, :challenge_not_solved}
-        else
-          {:ok, html}
-        end
+  defp parse_flare_response({:ok, %{status: 200, body: body}}) when is_map(body) do
+    html = get_in(body, ["solution", "response"])
+    check_challenge(html)
+  end
 
-      {:ok, %{status: 200, body: body}} when is_binary(body) ->
-        case Jason.decode(body) do
-          {:ok, %{"solution" => %{"response" => html}}} ->
-            if cloudflare_challenge?(html) do
-              {:error, :challenge_not_solved}
-            else
-              {:ok, html}
-            end
-
-          _ ->
-            {:error, {:flaresolverr_error, 200, "Invalid response format"}}
-        end
-
-      {:ok, %{status: status, body: body}} when is_map(body) ->
-        {:error, {:flaresolverr_error, status, body["message"]}}
-
-      {:ok, %{status: status, body: body}} when is_binary(body) ->
-        case Jason.decode(body) do
-          {:ok, decoded} -> {:error, {:flaresolverr_error, status, decoded["message"]}}
-          _ -> {:error, {:flaresolverr_error, status, nil}}
-        end
-
-      {:error, reason} ->
-        {:error, {:flaresolverr_unreachable, reason}}
+  defp parse_flare_response({:ok, %{status: 200, body: body}}) when is_binary(body) do
+    case Jason.decode(body) do
+      {:ok, %{"solution" => %{"response" => html}}} -> check_challenge(html)
+      _ -> {:error, {:flaresolverr_error, 200, "Invalid response format"}}
     end
+  end
+
+  defp parse_flare_response({:ok, %{status: status, body: body}}) when is_map(body) do
+    {:error, {:flaresolverr_error, status, body["message"]}}
+  end
+
+  defp parse_flare_response({:ok, %{status: status, body: body}}) when is_binary(body) do
+    case Jason.decode(body) do
+      {:ok, decoded} -> {:error, {:flaresolverr_error, status, decoded["message"]}}
+      _ -> {:error, {:flaresolverr_error, status, nil}}
+    end
+  end
+
+  defp parse_flare_response({:error, reason}) do
+    {:error, {:flaresolverr_unreachable, reason}}
+  end
+
+  defp check_challenge(html) do
+    if cloudflare_challenge?(html), do: {:error, :challenge_not_solved}, else: {:ok, html}
   end
 
   defp cloudflare_challenge?(html) when is_binary(html) do

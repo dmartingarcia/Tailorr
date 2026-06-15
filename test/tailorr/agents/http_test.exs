@@ -50,7 +50,7 @@ defmodule Tailorr.Agents.HttpTest do
         Plug.Conn.resp(conn, 500, "Internal Server Error")
       end)
 
-      config = %{"base_url" => endpoint_url(bypass)}
+      config = %{"base_url" => endpoint_url(bypass), "retries" => 0}
       assert {:error, {:http_error, 500}} = Http.test_connection(config)
     end
 
@@ -164,7 +164,8 @@ defmodule Tailorr.Agents.HttpTest do
       config = %{
         "id" => "test",
         "base_url" => endpoint_url(bypass),
-        "search_path" => "/search"
+        "search_path" => "/search",
+        "retries" => 0
       }
 
       query = %SearchQuery{query: "test"}

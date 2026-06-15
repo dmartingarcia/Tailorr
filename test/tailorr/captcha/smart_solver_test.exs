@@ -1,8 +1,8 @@
 defmodule Tailorr.Captcha.SmartSolverTest do
   use ExUnit.Case, async: false
 
-  alias Tailorr.Captcha.SmartSolver
   alias Tailorr.Captcha.FileStorage
+  alias Tailorr.Captcha.SmartSolver
 
   @test_dir "priv/ml/captcha_learning_test"
 
@@ -115,19 +115,17 @@ defmodule Tailorr.Captcha.SmartSolverTest do
     end
   end
 
-  describe "classify/2" do
+  describe "classify/3" do
     test "delega a FileStorage.classify/3" do
       {:ok, path} = FileStorage.save_failure(build_captcha(), "test.com")
       filename = Path.basename(path)
 
       result =
-        SmartSolver.classify(filename,
+        SmartSolver.classify("test.com", filename,
           solution: "TEST",
           category: "other"
         )
 
-      # Debería fallar porque classify espera tracker
-      # Esto está bien - el test verifica que la función existe
       assert match?({:ok, _}, result) or match?({:error, _}, result)
     end
   end

@@ -69,6 +69,14 @@ defmodule Tailorr.Captcha.Solvers.OCR do
 
   # Download or decode image to temporary file
   defp prepare_image(%{image_type: :url, image: url}) do
+    if String.starts_with?(url, "http") do
+      download_image(url)
+    else
+      {:error, {:invalid_url, url}}
+    end
+  end
+
+  defp download_image(url) do
     temp_path = temp_file("captcha", ".png")
 
     case Req.get(url) do

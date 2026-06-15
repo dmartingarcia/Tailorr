@@ -35,9 +35,8 @@ defmodule Tailorr.Agents.AuthTest do
         "__cookies" => %{"session" => "abc123"}
       }
 
-      # Should not need to login again, will try to search
-      # (will fail because no server, but session check passed)
-      assert {:error, _} = Auth.test_connection(config)
+      # Session is still valid — test_connection returns :ok without re-logging in
+      assert :ok = Auth.test_connection(config)
     end
 
     test "session expires after TTL" do
@@ -46,7 +45,7 @@ defmodule Tailorr.Agents.AuthTest do
         "id" => "test",
         "base_url" => "https://example.com",
         "session_ttl_minutes" => 1440,
-        "__last_login_at" => :os.system_time(:second) - 2 * 86400
+        "__last_login_at" => :os.system_time(:second) - 2 * 86_400
       }
 
       # Should try to re-login
@@ -242,16 +241,17 @@ defmodule Tailorr.Agents.AuthTest do
         |> Plug.Conn.resp(302, "")
       end)
 
-      # Req will follow the redirect, but we don't mock that endpoint
-      # Just verify 302 is accepted as success
+      Bypass.expect_once(bypass, "GET", "/home", fn conn ->
+        Plug.Conn.resp(conn, 200, "<html><span id='user'>User</span></html>")
+      end)
+
       config = %{
         "id" => "test",
         "base_url" => endpoint_url(bypass),
-        "session_check" => %{}
+        "session_check" => %{"logged_in_selector" => "#user"}
       }
 
-      # Will fail on redirect target, but login attempt happens
-      Auth.test_connection(config)
+      assert :ok = Auth.test_connection(config)
     end
   end
 

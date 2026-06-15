@@ -22,6 +22,7 @@ defmodule TailorrWeb.CaptchaReviewSimpleLive do
       socket =
         socket
         |> assign(
+          loading: false,
           trackers: trackers,
           selected_tracker: selected_tracker,
           failed_examples: FileStorage.list_failed(selected_tracker),
@@ -69,14 +70,14 @@ defmodule TailorrWeb.CaptchaReviewSimpleLive do
       {:ok, _path} ->
         socket =
           socket
-          |> put_flash(:info, "✅ CAPTCHA clasificado: #{category}")
+          |> put_flash(:info, "CAPTCHA clasificado: #{category}")
           |> reload_data()
           |> assign(current_example: nil)
 
         {:noreply, socket}
 
       {:error, :file_not_found} ->
-        {:noreply, put_flash(socket, :error, "❌ Archivo no encontrado")}
+        {:noreply, put_flash(socket, :error, "Archivo no encontrado")}
     end
   end
 
@@ -98,16 +99,20 @@ defmodule TailorrWeb.CaptchaReviewSimpleLive do
   @impl true
   def handle_event("export", %{"quality" => _quality}, socket) do
     tracker = socket.assigns.selected_tracker
+    lv_pid = self()
 
     Task.start(fn ->
-      if tracker do
-        FileStorage.export_training_data(tracker: tracker)
-      else
-        FileStorage.export_training_data()
-      end
+      result =
+        if tracker do
+          FileStorage.export_training_data(tracker: tracker)
+        else
+          FileStorage.export_training_data()
+        end
+
+      send(lv_pid, {:export_done, result})
     end)
 
-    {:noreply, put_flash(socket, :info, "📦 Exportando datos...")}
+    {:noreply, put_flash(socket, :info, "Exportando datos...")}
   end
 
   @impl true
@@ -116,124 +121,139 @@ defmodule TailorrWeb.CaptchaReviewSimpleLive do
   end
 
   @impl true
+  def handle_info({:export_done, {:ok, count}}, socket) do
+    {:noreply, put_flash(socket, :info, "Exportacion completada: #{count} ejemplos")}
+  end
+
+  @impl true
+  def handle_info({:export_done, {:error, reason}}, socket) do
+    {:noreply, put_flash(socket, :error, "Error al exportar: #{inspect(reason)}")}
+  end
+
+  @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen bg-gray-50 p-6">
-      <div class="max-w-7xl mx-auto">
-        <!-- Header -->
-        <div class="mb-6">
-          <h1 class="text-3xl font-bold text-gray-900">🧠 CAPTCHA Review</h1>
-          <p class="text-gray-600 mt-1">Clasifica CAPTCHAs para entrenar el modelo</p>
-        </div>
-
-        <!-- Tracker selector -->
-        <%= if length(@trackers) > 0 do %>
-          <div class="bg-white rounded-lg shadow p-4 mb-6">
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              🎯 Tracker / Dominio
-            </label>
-            <select
-              phx-change="change_tracker"
-              name="tracker"
-              class="w-full px-3 py-2 border rounded-lg"
-            >
-              <option value="">-- Todos los trackers --</option>
-              <%= for tracker <- @trackers do %>
-                <option value={tracker} selected={tracker == @selected_tracker}>
-                  <%= tracker %> <%= tracker_badge(@stats, tracker) %>
-                </option>
-              <% end %>
-            </select>
+    <%= if @loading do %>
+      <div class="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p class="text-gray-500">Loading...</p>
+      </div>
+    <% else %>
+      <div class="min-h-screen bg-gray-50 p-6">
+        <div class="max-w-7xl mx-auto">
+          <!-- Header -->
+          <div class="mb-6">
+            <h1 class="text-3xl font-bold text-gray-900">CAPTCHA Review</h1>
+            <p class="text-gray-600 mt-1">Clasifica CAPTCHAs para entrenar el modelo</p>
           </div>
-        <% end %>
 
-        <!-- Stats -->
-        <.stats_panel stats={@stats} selected_tracker={@selected_tracker} />
-
-        <!-- Toolbar -->
-        <div class="bg-white rounded-lg shadow p-4 mb-6 flex gap-4">
-          <button
-            phx-click="export"
-            phx-value-quality="all"
-            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            📦 Exportar Training Data <%= if @selected_tracker, do: "(#{@selected_tracker})", else: "(Todos)" %>
-          </button>
-          <button
-            phx-click="refresh"
-            class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
-          >
-            🔄 Refrescar
-          </button>
-        </div>
-
-        <!-- Content -->
-        <div class="grid grid-cols-3 gap-6">
-          <!-- List -->
-          <div class="col-span-1">
-            <div class="bg-white rounded-lg shadow">
-              <!-- Tabs -->
-              <div class="border-b border-gray-200 flex">
-                <button
-                  phx-click="change_tab"
-                  phx-value-tab="failed"
-                  class={tab_class(@tab == "failed")}
-                >
-                  ❌ Fallidos (<%= length(@failed_examples) %>)
-                </button>
-                <button
-                  phx-click="change_tab"
-                  phx-value-tab="success"
-                  class={tab_class(@tab == "success")}
-                >
-                  ✅ Exitosos (<%= length(@success_examples) %>)
-                </button>
-                <button
-                  phx-click="change_tab"
-                  phx-value-tab="classified"
-                  class={tab_class(@tab == "classified")}
-                >
-                  📁 Clasificados (<%= length(@classified_examples) %>)
-                </button>
-              </div>
-
-              <!-- List -->
-              <div class="max-h-[600px] overflow-y-auto divide-y">
-                <%= if @tab == "failed" do %>
-                  <%= for example <- @failed_examples do %>
-                    <.example_item example={example} tab="failed" current={@current_example} />
-                  <% end %>
+          <!-- Tracker selector -->
+          <%= if length(@trackers) > 0 do %>
+            <div class="bg-white rounded-lg shadow p-4 mb-6">
+              <label class="block text-sm font-medium text-gray-700 mb-2">
+                Tracker / Dominio
+              </label>
+              <select
+                phx-change="change_tracker"
+                name="tracker"
+                class="w-full px-3 py-2 border rounded-lg"
+              >
+                <option value="">-- Todos los trackers --</option>
+                <%= for tracker <- @trackers do %>
+                  <option value={tracker} selected={tracker == @selected_tracker}>
+                    <%= tracker %> <%= tracker_badge(@stats, tracker) %>
+                  </option>
                 <% end %>
+              </select>
+            </div>
+          <% end %>
 
-                <%= if @tab == "success" do %>
-                  <%= for example <- @success_examples do %>
-                    <.example_item example={example} tab="success" current={@current_example} />
-                  <% end %>
-                <% end %>
+          <!-- Stats -->
+          <.stats_panel stats={@stats} selected_tracker={@selected_tracker} />
 
-                <%= if @tab == "classified" do %>
-                  <%= for example <- @classified_examples do %>
-                    <.example_item example={example} tab="classified" current={@current_example} />
+          <!-- Toolbar -->
+          <div class="bg-white rounded-lg shadow p-4 mb-6 flex gap-4">
+            <button
+              phx-click="export"
+              phx-value-quality="all"
+              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Exportar Training Data <%= if @selected_tracker, do: "(#{@selected_tracker})", else: "(Todos)" %>
+            </button>
+            <button
+              phx-click="refresh"
+              class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+            >
+              Refrescar
+            </button>
+          </div>
+
+          <!-- Content -->
+          <div class="grid grid-cols-3 gap-6">
+            <!-- List -->
+            <div class="col-span-1">
+              <div class="bg-white rounded-lg shadow">
+                <!-- Tabs -->
+                <div class="border-b border-gray-200 flex">
+                  <button
+                    phx-click="change_tab"
+                    phx-value-tab="failed"
+                    class={tab_class(@tab == "failed")}
+                  >
+                    Fallidos (<%= length(@failed_examples) %>)
+                  </button>
+                  <button
+                    phx-click="change_tab"
+                    phx-value-tab="success"
+                    class={tab_class(@tab == "success")}
+                  >
+                    Exitosos (<%= length(@success_examples) %>)
+                  </button>
+                  <button
+                    phx-click="change_tab"
+                    phx-value-tab="classified"
+                    class={tab_class(@tab == "classified")}
+                  >
+                    Clasificados (<%= length(@classified_examples) %>)
+                  </button>
+                </div>
+
+                <!-- List -->
+                <div class="max-h-[600px] overflow-y-auto divide-y">
+                  <%= if @tab == "failed" do %>
+                    <%= for example <- @failed_examples do %>
+                      <.example_item example={example} tab="failed" current={@current_example} />
+                    <% end %>
                   <% end %>
-                <% end %>
+
+                  <%= if @tab == "success" do %>
+                    <%= for example <- @success_examples do %>
+                      <.example_item example={example} tab="success" current={@current_example} />
+                    <% end %>
+                  <% end %>
+
+                  <%= if @tab == "classified" do %>
+                    <%= for example <- @classified_examples do %>
+                      <.example_item example={example} tab="classified" current={@current_example} />
+                    <% end %>
+                  <% end %>
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- Detail -->
-          <div class="col-span-2">
-            <%= if @current_example do %>
-              <.detail_view example={@current_example} tab={@tab} />
-            <% else %>
-              <div class="bg-white rounded-lg shadow p-12 text-center">
-                <div class="text-6xl mb-4">👈</div>
-                <p class="text-gray-600">Selecciona un CAPTCHA para revisar</p>
-              </div>
-            <% end %>
+            <!-- Detail -->
+            <div class="col-span-2">
+              <%= if @current_example do %>
+                <.detail_view example={@current_example} tab={@tab} />
+              <% else %>
+                <div class="bg-white rounded-lg shadow p-12 text-center">
+                  <p class="text-gray-600">Selecciona un CAPTCHA para revisar</p>
+                </div>
+              <% end %>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    <% end %>
     """
   end
 
@@ -262,15 +282,15 @@ defmodule TailorrWeb.CaptchaReviewSimpleLive do
         </div>
       </div>
       <div class="bg-yellow-50 rounded-lg shadow p-4">
-        <div class="text-sm text-gray-600">❌ Fallidos</div>
+        <div class="text-sm text-gray-600">Fallidos</div>
         <div class="text-2xl font-bold text-yellow-800"><%= @tracker_stats[:failed] %></div>
       </div>
       <div class="bg-green-50 rounded-lg shadow p-4">
-        <div class="text-sm text-gray-600">✅ Exitosos</div>
+        <div class="text-sm text-gray-600">Exitosos</div>
         <div class="text-2xl font-bold text-green-800"><%= @tracker_stats[:success] %></div>
       </div>
       <div class="bg-purple-50 rounded-lg shadow p-4">
-        <div class="text-sm text-gray-600">📁 Clasificados</div>
+        <div class="text-sm text-gray-600">Clasificados</div>
         <div class="text-2xl font-bold text-purple-800"><%= @tracker_stats[:classified] %></div>
       </div>
     </div>
@@ -374,14 +394,14 @@ defmodule TailorrWeb.CaptchaReviewSimpleLive do
             <div>
               <label class="block text-sm font-medium mb-1">Categoría</label>
               <select name="category" class="w-full px-3 py-2 border rounded-lg">
-                <option value="distorted">🌀 Distorsionado</option>
-                <option value="noise">📡 Ruido</option>
-                <option value="low_contrast">🌫️ Bajo Contraste</option>
-                <option value="multiple_fonts">🔤 Múltiples Fuentes</option>
-                <option value="overlapping">🔀 Solapamiento</option>
-                <option value="background_pattern">🎨 Patrón de Fondo</option>
-                <option value="unusual_chars">❓ Caracteres Raros</option>
-                <option value="other">💡 Otro</option>
+                <option value="distorted">Distorsionado</option>
+                <option value="noise">Ruido</option>
+                <option value="low_contrast">Bajo Contraste</option>
+                <option value="multiple_fonts">Multiples Fuentes</option>
+                <option value="overlapping">Solapamiento</option>
+                <option value="background_pattern">Patron de Fondo</option>
+                <option value="unusual_chars">Caracteres Raros</option>
+                <option value="other">Otro</option>
               </select>
             </div>
 
@@ -399,7 +419,7 @@ defmodule TailorrWeb.CaptchaReviewSimpleLive do
               type="submit"
               class="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
             >
-              💾 Clasificar y Guardar
+              Clasificar y Guardar
             </button>
           </form>
         <% end %>

@@ -10,7 +10,7 @@ defmodule Tailorr.Scraper do
   - Size/date parsing and normalization
   """
 
-  alias Tailorr.{Result, Normalizer, Downloaders}
+  alias Tailorr.{Downloaders, Normalizer, Result}
 
   @doc """
   Parse HTML and extract results according to tracker config.
