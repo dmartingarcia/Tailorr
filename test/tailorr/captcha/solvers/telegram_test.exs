@@ -40,11 +40,80 @@ defmodule Tailorr.Captcha.Solvers.TelegramTest do
     end
   end
 
-  @moduletag :integration
-  @tag :skip
-  test "integration: broadcasts to registered users and receives solution" do
-    # Requires a running bot with TELEGRAM_BOT_TOKEN and at least one registered user.
-    # Run with: TELEGRAM_BOT_TOKEN=xxx mix test --only integration
-    :ok
+  describe "solve/2 - full flow" do
+    test "broadcasts to registered user and returns solution" do
+      Req.Test.stub(:tg_solve, fn conn ->
+        cond do
+          String.contains?(conn.request_path, "sendPhoto") ->
+            Req.Test.json(conn, %{"ok" => true, "result" => %{"message_id" => 42}})
+
+          true ->
+            Req.Test.json(conn, %{"ok" => true, "result" => %{"message_id" => 99}})
+        end
+      end)
+
+      %Tailorr.Captcha.TelegramChat{}
+      |> Tailorr.Captcha.TelegramChat.changeset(%{chat_id: 60_001, first_name: "Tester"})
+      |> Repo.insert!()
+
+      pid =
+        start_supervised!(
+          {Bot,
+           [bot_token: "test_token", polling: false, req_options: [plug: {Req.Test, :tg_solve}]]}
+        )
+
+      Req.Test.allow(:tg_solve, self(), pid)
+
+      test_pid = self()
+
+      # solve/2 blocks in a receive — run it in a task so the test can drive the reply
+      Task.start(fn ->
+        captcha = %{image: "https://example.com/captcha.png", image_type: :url}
+        result = Telegram.solve(captcha, timeout: 2_000)
+        send(test_pid, {:solve_result, result})
+      end)
+
+      # Give the task time to call broadcast_captcha and enter the receive block
+      Process.sleep(100)
+
+      # Simulate a user replying to the CAPTCHA photo (message_id 42 from stub)
+      Bot.simulate_update(%{
+        "update_id" => 1,
+        "message" => %{
+          "message_id" => 99,
+          "text" => "ABC123",
+          "chat" => %{"id" => 60_001},
+          "from" => %{"id" => 60_001},
+          "reply_to_message" => %{"message_id" => 42}
+        }
+      })
+
+      assert_receive {:solve_result, {:ok, "ABC123"}}, 1_000
+    end
+
+    test "times out when nobody replies" do
+      Req.Test.stub(:tg_timeout, fn conn ->
+        Req.Test.json(conn, %{"ok" => true, "result" => %{"message_id" => 42}})
+      end)
+
+      %Tailorr.Captcha.TelegramChat{}
+      |> Tailorr.Captcha.TelegramChat.changeset(%{chat_id: 70_001})
+      |> Repo.insert!()
+
+      pid =
+        start_supervised!(
+          {Bot,
+           [
+             bot_token: "test_token",
+             polling: false,
+             req_options: [plug: {Req.Test, :tg_timeout}]
+           ]}
+        )
+
+      Req.Test.allow(:tg_timeout, self(), pid)
+
+      captcha = %{image: "https://example.com/captcha.png", image_type: :url}
+      assert {:error, :timeout} = Telegram.solve(captcha, timeout: 200)
+    end
   end
 end
