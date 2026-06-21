@@ -24,8 +24,7 @@ defmodule Tailorr.Captcha.Solvers.Telegram.Bot do
   # ---- Public API ----
 
   def start_link(opts) do
-    bot_token = Keyword.fetch!(opts, :bot_token)
-    GenServer.start_link(__MODULE__, bot_token, name: __MODULE__)
+    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
   @doc "Returns the list of currently registered chat IDs."
@@ -55,10 +54,20 @@ defmodule Tailorr.Captcha.Solvers.Telegram.Bot do
     GenServer.cast(__MODULE__, {:cancel_captcha, ref})
   end
 
+  @doc "Injects a raw Telegram update map for testing without a live poll loop."
+  @spec simulate_update(map()) :: :ok
+  def simulate_update(update) do
+    GenServer.call(__MODULE__, {:simulate_update, update})
+  end
+
   # ---- GenServer callbacks ----
 
   @impl true
-  def init(bot_token) do
+  def init(opts) do
+    bot_token = Keyword.fetch!(opts, :bot_token)
+    req_options = Keyword.get(opts, :req_options, [])
+    polling = Keyword.get(opts, :polling, true)
+
     registered_chats =
       Repo.all(TelegramChat)
       |> Enum.map(& &1.chat_id)
@@ -66,13 +75,14 @@ defmodule Tailorr.Captcha.Solvers.Telegram.Bot do
 
     state = %{
       bot_token: bot_token,
+      req_options: req_options,
       registered_chats: registered_chats,
       pending: %{},
       message_id_to_ref: %{},
       last_update_id: nil
     }
 
-    send(self(), :poll)
+    if polling, do: send(self(), :poll)
     {:ok, state}
   end
 
@@ -89,6 +99,10 @@ defmodule Tailorr.Captcha.Solvers.Telegram.Bot do
     end
   end
 
+  def handle_call({:simulate_update, update}, _from, state) do
+    {:reply, :ok, process_update(update, state)}
+  end
+
   defp broadcast_to_registered_chats(captcha_data, from_pid, state) do
     caption =
       "CAPTCHA challenge\n\n#{captcha_data[:message] || "Please solve this CAPTCHA."}\n\nYou must reply to this message with the answer (use Telegram's reply feature)."
@@ -96,7 +110,7 @@ defmodule Tailorr.Captcha.Solvers.Telegram.Bot do
     {sent_messages, _failed} =
       state.registered_chats
       |> MapSet.to_list()
-      |> Enum.map(&send_to_chat(state.bot_token, &1, captcha_data, caption))
+      |> Enum.map(&send_to_chat(state.bot_token, state.req_options, &1, captcha_data, caption))
       |> Enum.split_with(&match?({:ok, _}, &1))
 
     if sent_messages == [] do
@@ -108,8 +122,8 @@ defmodule Tailorr.Captcha.Solvers.Telegram.Bot do
     end
   end
 
-  defp send_to_chat(bot_token, chat_id, captcha_data, caption) do
-    case send_captcha_to_chat(bot_token, chat_id, captcha_data, caption) do
+  defp send_to_chat(bot_token, req_options, chat_id, captcha_data, caption) do
+    case send_captcha_to_chat(bot_token, req_options, chat_id, captcha_data, caption) do
       {:ok, message_id} -> {:ok, {chat_id, message_id}}
       {:error, reason} -> {:error, {chat_id, reason}}
     end
@@ -138,9 +152,10 @@ defmodule Tailorr.Captcha.Solvers.Telegram.Bot do
     server = self()
     token = state.bot_token
     offset = if state.last_update_id, do: state.last_update_id + 1, else: nil
+    req_options = state.req_options
 
     Task.start(fn ->
-      result = fetch_updates(token, offset)
+      result = fetch_updates(token, offset, req_options)
       send(server, {:updates, result})
     end)
 
@@ -166,16 +181,13 @@ defmodule Tailorr.Captcha.Solvers.Telegram.Bot do
 
   # ---- Private helpers ----
 
-  defp fetch_updates(token, offset) do
-    params = %{
-      timeout: 30,
-      allowed_updates: ["message"]
-    }
-
+  defp fetch_updates(token, offset, req_options) do
+    params = %{timeout: 30, allowed_updates: ["message"]}
     params = if offset, do: Map.put(params, :offset, offset), else: params
     url = "https://api.telegram.org/bot#{token}/getUpdates"
+    opts = Keyword.merge([json: params, receive_timeout: 35_000], req_options)
 
-    case Req.post(url, json: params, receive_timeout: 35_000) do
+    case Req.post(url, opts) do
       {:ok, %{status: 200, body: %{"ok" => true, "result" => updates}}} ->
         {:ok, updates}
 
@@ -244,6 +256,7 @@ defmodule Tailorr.Captcha.Solvers.Telegram.Bot do
 
         send_message(
           state.bot_token,
+          state.req_options,
           chat_id,
           "Hi #{first_name}! ✅ You are now registered and will receive CAPTCHA requests."
         )
@@ -251,7 +264,7 @@ defmodule Tailorr.Captcha.Solvers.Telegram.Bot do
         %{state | registered_chats: new_chats}
 
       {:error, _changeset} ->
-        send_message(state.bot_token, chat_id, "Already registered ✅")
+        send_message(state.bot_token, state.req_options, chat_id, "Already registered ✅")
         state
     end
   end
@@ -274,13 +287,14 @@ defmodule Tailorr.Captcha.Solvers.Telegram.Bot do
       %{from_pid: from_pid, messages: messages} ->
         send(from_pid, {:captcha_solution, ref, String.trim(solution)})
 
-        send_message(state.bot_token, solver_chat_id, "✅ Solution received!")
+        send_message(state.bot_token, state.req_options, solver_chat_id, "✅ Solution received!")
 
         messages
         |> Enum.reject(fn {chat_id, _} -> chat_id == solver_chat_id end)
         |> Enum.each(fn {chat_id, _} ->
           send_message(
             state.bot_token,
+            state.req_options,
             chat_id,
             "ℹ️ CAPTCHA already solved by another user."
           )
@@ -309,7 +323,7 @@ defmodule Tailorr.Captcha.Solvers.Telegram.Bot do
     end
   end
 
-  defp send_captcha_to_chat(token, chat_id, captcha_data, caption) do
+  defp send_captcha_to_chat(token, req_options, chat_id, captcha_data, caption) do
     case captcha_data.image_type do
       :url ->
         body = %{
@@ -319,7 +333,7 @@ defmodule Tailorr.Captcha.Solvers.Telegram.Bot do
           parse_mode: "Markdown"
         }
 
-        telegram_request(token, "sendPhoto", body)
+        telegram_request(token, req_options, "sendPhoto", body)
 
       :base64 ->
         image_data =
@@ -336,7 +350,9 @@ defmodule Tailorr.Captcha.Solvers.Telegram.Bot do
           {:file, "photo", image_data, filename: "captcha.png"}
         ]
 
-        case Req.post(url, multipart: multipart) do
+        opts = Keyword.merge([multipart: multipart], req_options)
+
+        case Req.post(url, opts) do
           {:ok, %{status: 200, body: %{"ok" => true, "result" => %{"message_id" => message_id}}}} ->
             {:ok, message_id}
 
@@ -352,19 +368,20 @@ defmodule Tailorr.Captcha.Solvers.Telegram.Bot do
     end
   end
 
-  defp send_message(token, chat_id, text) do
+  defp send_message(token, req_options, chat_id, text) do
     body = %{chat_id: chat_id, text: text}
 
-    case telegram_request(token, "sendMessage", body) do
+    case telegram_request(token, req_options, "sendMessage", body) do
       {:ok, _} -> :ok
       {:error, reason} -> Logger.warning("Failed to send Telegram message: #{inspect(reason)}")
     end
   end
 
-  defp telegram_request(token, method, body) do
+  defp telegram_request(token, req_options, method, body) do
     url = "https://api.telegram.org/bot#{token}/#{method}"
+    opts = Keyword.merge([json: body], req_options)
 
-    case Req.post(url, json: body) do
+    case Req.post(url, opts) do
       {:ok, %{status: 200, body: %{"ok" => true, "result" => %{"message_id" => message_id}}}} ->
         {:ok, message_id}
 

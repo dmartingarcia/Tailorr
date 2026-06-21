@@ -27,7 +27,12 @@ defmodule Tailorr.Captcha.Solvers.TelegramTest do
 
   describe "solve/2 - bot running with no registered chats" do
     test "returns error when no users have registered" do
-      start_supervised!({Bot, [bot_token: "test_token"]})
+      Req.Test.stub(:tg, fn conn ->
+        Req.Test.json(conn, %{"ok" => true, "result" => []})
+      end)
+
+      pid = start_supervised!({Bot, [bot_token: "test_token", polling: false, req_options: [plug: {Req.Test, :tg}]]})
+      Req.Test.allow(:tg, self(), pid)
 
       captcha = %{image: "https://example.com/captcha.png", image_type: :url}
 
