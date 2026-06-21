@@ -39,7 +39,10 @@ RUN mix compile
 # Development stage
 FROM elixir:1.20-alpine AS dev
 
-RUN apk add --no-cache libstdc++ ncurses-libs bash inotify-tools nodejs npm
+RUN apk add --no-cache \
+    libstdc++ ncurses-libs bash inotify-tools nodejs npm \
+    tesseract-ocr tesseract-ocr-data-eng \
+    imagemagick
 
 WORKDIR /app
 
