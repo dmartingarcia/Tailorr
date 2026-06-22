@@ -18,7 +18,11 @@ const sessions = new Map();
  */
 app.post('/session/create', async (req, res) => {
   try {
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({
+      headless: true,
+      executablePath: process.env.CHROMIUM_EXECUTABLE_PATH,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
     const context = await browser.newContext({
       viewport: { width: 1280, height: 720 }
     });
