@@ -8,10 +8,20 @@
       <%= assigns[:page_title] || "Tailorr" %>
     </.live_title>
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
+    <%!-- Inline script runs synchronously to apply dark class before first paint, preventing flash --%>
+    <script>
+      (function() {
+        var theme = localStorage.getItem('theme');
+        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (theme === 'dark' || (!theme && prefersDark)) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
     <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
     </script>
   </head>
-  <body class="bg-white antialiased">
+  <body class="bg-background text-foreground antialiased">
     <%= @inner_content %>
   </body>
 </html>

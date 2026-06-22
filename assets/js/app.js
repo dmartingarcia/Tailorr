@@ -22,10 +22,30 @@ import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
 
+let Hooks = {}
+
+// Toggles dark mode and persists preference to localStorage.
+// The initial dark class is applied by the inline script in root.html.heex (no flash).
+Hooks.ThemeToggle = {
+  mounted() {
+    this.el.addEventListener('click', () => {
+      const html = document.documentElement
+      if (html.classList.contains('dark')) {
+        html.classList.remove('dark')
+        localStorage.setItem('theme', 'light')
+      } else {
+        html.classList.add('dark')
+        localStorage.setItem('theme', 'dark')
+      }
+    })
+  }
+}
+
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
-  params: {_csrf_token: csrfToken}
+  params: {_csrf_token: csrfToken},
+  hooks: Hooks
 })
 
 // Show progress bar on live navigation and form submits

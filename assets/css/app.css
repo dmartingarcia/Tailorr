@@ -26,6 +26,28 @@
     --ring: 240 5.9% 10%;
     --radius: 0.5rem;
   }
+
+  .dark {
+    --background: 215 28% 17%;      /* slate-800 — dark but not black */
+    --foreground: 210 17% 90%;      /* soft off-white */
+    --card: 215 25% 21%;            /* slightly lighter than bg */
+    --card-foreground: 210 17% 90%;
+    --popover: 215 25% 21%;
+    --popover-foreground: 210 17% 90%;
+    --primary: 210 17% 90%;
+    --primary-foreground: 215 28% 17%;
+    --secondary: 215 19% 27%;       /* slate-700 */
+    --secondary-foreground: 210 17% 90%;
+    --muted: 215 19% 27%;
+    --muted-foreground: 215 14% 55%;
+    --accent: 215 19% 27%;
+    --accent-foreground: 210 17% 90%;
+    --destructive: 0 63% 45%;
+    --destructive-foreground: 210 17% 90%;
+    --border: 215 16% 30%;
+    --input: 215 16% 30%;
+    --ring: 212 80% 65%;
+  }
 }
 
 /* Custom styles */
