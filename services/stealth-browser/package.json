@@ -1,0 +1,14 @@
+{
+  "name": "tailorr-stealth-solver",
+  "version": "1.0.0",
+  "description": "FlareSolverr-compatible stealth browser service for Cloudflare Turnstile bypass",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  }
+}

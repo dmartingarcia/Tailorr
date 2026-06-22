@@ -12,6 +12,7 @@ services:
       DATABASE_URL: "ecto://tailorr:tailorr@db/tailorr_dev"
       FLARESOLVERR_URL: "http://flaresolverr:8191"
       BROWSER_URL: "http://browser:3001"
+      STEALTH_SOLVER_URL: "http://stealth-solver:3002"
       MIX_ENV: dev
       PHX_HOST: localhost
     volumes:
@@ -27,8 +28,22 @@ services:
         condition: service_started
       browser:
         condition: service_started
+      stealth-solver:
+        condition: service_started
     networks:
       - tailorr
+
+  stealth-solver:
+    build:
+      context: ./services/stealth-browser
+      dockerfile: Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
+      PORT: 3002
+    networks:
+      - tailorr
+    restart: unless-stopped
 
   browser:
     build:
