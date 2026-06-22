@@ -4,7 +4,10 @@ defmodule Tailorr.Downloaders.DonTorrent do
   Handles the complete flow: challenge → POW → validation → download URL.
   """
 
+  @behaviour Tailorr.Downloaders.Behaviour
+
   alias Tailorr.{Captcha, Pow}
+  alias Tailorr.Captcha.FileStorage
   require Logger
 
   @api_endpoint "/api_validate_pow.php"
@@ -25,6 +28,113 @@ defmodule Tailorr.Downloaders.DonTorrent do
          {:ok, challenge} <- generate_challenge(base_url, content_id, tabla),
          {:ok, nonce} <- Pow.compute(challenge, 3) do
       validate_pow(base_url, challenge, nonce)
+    end
+  end
+
+  @doc """
+  Expand a season page into individual episode entries with download URLs.
+
+  Fetches the season detail page, parses episode rows, and resolves each
+  episode's download URL via the POW mechanism.
+
+  ## Parameters
+    - season_url: Full URL to the season page (e.g., https://...don.../serie/886/888/Breaking-Bad-1-Temporada)
+    - base_url: Tracker base URL
+
+  ## Returns
+    - {:ok, [%{episode_title, download_url, published_at}]} on success
+    - {:error, reason} on failure
+  """
+  def expand_season(season_url, base_url) do
+    Logger.debug("DonTorrent: Expanding season #{season_url}")
+
+    case Req.get(season_url,
+           headers: [
+             {"user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+           ],
+           receive_timeout: 20_000,
+           retry: :transient,
+           max_retries: 3,
+           retry_delay: fn n -> Integer.pow(2, n) * 2_000 end
+         ) do
+      {:ok, %{status: 200, body: html}} when is_binary(html) ->
+        {:ok, fetch_episode_downloads(html, base_url)}
+
+      {:ok, %{status: status}} ->
+        {:error, {:http_error, status}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp fetch_episode_downloads(html, base_url) do
+    case Floki.parse_document(html) do
+      {:ok, doc} ->
+        rows = Floki.find(doc, "tbody tr")
+
+        rows
+        |> Task.async_stream(
+          fn row -> parse_episode_row(row, base_url) end,
+          timeout: 60_000,
+          max_concurrency: 10,
+          on_timeout: :kill_task
+        )
+        |> Enum.flat_map(fn
+          {:ok, nil} -> []
+          {:ok, ep} -> [ep]
+          {:exit, _} -> []
+        end)
+
+      {:error, _} ->
+        []
+    end
+  end
+
+  defp parse_episode_row(row, base_url) do
+    tds = Floki.find(row, "td")
+
+    episode_title =
+      case List.first(tds) do
+        nil -> ""
+        td -> [td] |> Floki.text() |> String.trim()
+      end
+
+    content_id_str =
+      row
+      |> Floki.find("[data-content-id]")
+      |> Floki.attribute("data-content-id")
+      |> List.first()
+
+    date_str =
+      case Enum.at(tds, 2) do
+        nil -> nil
+        td -> [td] |> Floki.text() |> String.trim()
+      end
+
+    with title when title != "" <- episode_title,
+         id_str when is_binary(id_str) <- content_id_str,
+         {content_id, _} <- Integer.parse(id_str),
+         {:ok, challenge} <- generate_challenge(base_url, content_id, "series"),
+         {:ok, nonce} <- Pow.compute(challenge, 3),
+         {:ok, download_url} <- validate_pow(base_url, challenge, nonce) do
+      %{
+        episode_title: title,
+        download_url: download_url,
+        published_at: parse_episode_date(date_str)
+      }
+    else
+      _ -> nil
+    end
+  end
+
+  defp parse_episode_date(nil), do: nil
+  defp parse_episode_date(""), do: nil
+
+  defp parse_episode_date(date_str) do
+    case Date.from_iso8601(date_str) do
+      {:ok, date} -> DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
+      _ -> nil
     end
   end
 
@@ -54,7 +164,13 @@ defmodule Tailorr.Downloaders.DonTorrent do
 
     Logger.debug("DonTorrent: Generating challenge for content_id=#{content_id}")
 
-    case Req.post(url, json: payload, receive_timeout: 10_000) do
+    case Req.post(url,
+           json: payload,
+           receive_timeout: 10_000,
+           retry: :transient,
+           max_retries: 3,
+           retry_delay: fn n -> Integer.pow(2, n) * 1_000 end
+         ) do
       {:ok, %{status: 200, body: %{"success" => true, "challenge" => challenge}}} ->
         {:ok, challenge}
 
@@ -119,21 +235,41 @@ defmodule Tailorr.Downloaders.DonTorrent do
     captcha_input = %{
       image: captcha_image,
       image_type: :base64,
-      message: message
+      message: message,
+      tracker: "dontorrent"
     }
 
-    Logger.info("DonTorrent: CAPTCHA required - attempting to solve")
+    # Check cache before calling any solver
+    case FileStorage.lookup_cache(captcha_input) do
+      {:ok, cached_solution} ->
+        Logger.info("DonTorrent: CAPTCHA hit cache, reusing solution")
+        validate_pow(base_url, challenge, nonce, cached_solution)
 
-    case Captcha.solve(captcha_input) do
-      {:ok, solution} ->
-        # Retry validation with CAPTCHA solution
-        validate_pow(base_url, challenge, nonce, solution)
+      :miss ->
+        Logger.info("DonTorrent: CAPTCHA required — attempting to solve")
+        FileStorage.save_pending(captcha_input, "dontorrent", %{source: :pow})
 
-      {:error, :user_cancelled} ->
-        {:error, :captcha_cancelled}
+        case Captcha.solve(captcha_input) do
+          {:ok, solution} ->
+            FileStorage.save_success(captcha_input, solution, "dontorrent", %{source: :pow})
+            validate_pow(base_url, challenge, nonce, solution)
 
-      {:error, reason} ->
-        {:error, {:captcha_failed, reason}}
+          {:error, :user_cancelled} ->
+            FileStorage.save_failure(captcha_input, "dontorrent", %{
+              source: :pow,
+              reason: "user_cancelled"
+            })
+
+            {:error, :captcha_cancelled}
+
+          {:error, reason} ->
+            FileStorage.save_failure(captcha_input, "dontorrent", %{
+              source: :pow,
+              reason: inspect(reason)
+            })
+
+            {:error, {:captcha_failed, reason}}
+        end
     end
   end
 end
