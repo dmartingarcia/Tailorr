@@ -9,18 +9,46 @@ categories:
 
 enabled: true
 
-agent: cloudflare
+# Search results are rendered client-side by datafind.js, which POSTs to
+# /mvc/controllers/data.find.php and injects cards into #resDetalle.
+# The static HTML response contains an empty #resDetalle div, so agent: http
+# always returns 0 results. A browser agent is required to execute the JS.
+agent: browser
+driver: port
 base_url: "https://wolfmax4k.com"
 search_path: "/buscar/{query}"
-max_timeout_ms: 60000
+# Wait until at least one result card appears inside #resDetalle.
+# datafind.js does a setTimeout(..., 500) before setting innerHTML,
+# so we wait for .col-lg-2 to confirm cards have been injected.
+wait_for_selector: "#resDetalle .col-lg-2"
+scroll_to_bottom: false
+screenshot_on_error: true
+max_timeout_ms: 30000
 
 search_params:
   query_key: null
 
+# Card HTML (injected by datafind.js buscarDetalle):
+#
+#   <div class="col-lg-2">
+#     <a href="https://wolfmax4k.com/movie/142052" class="card card-movie">
+#       <div class="card-overlay">
+#         <div class="quality-ms"><div class="quality">BluRay MicroHD</div></div>
+#       </div>
+#       <div class="card-body">
+#         <h3 class="title">El Camino una pelicula de Breaking Bad ...</h3>
+#       </div>
+#     </a>
+#   </div>
+#
+# guid values are relative paths: "movie/142052", "serie-online/121895", etc.
+# detail_url is resolved to a full URL by the scraper (base_url + "/" + guid).
+# No size, seeders, leechers, or direct download link in search results —
+# those require visiting the detail page.
 parsing:
   result_rows: "#resDetalle .col-lg-2"
   fields:
-    title: ".card-body .title"
+    title: ".card-body h3.title"
     detail_url: "a.card-movie@href"
     quality: ".quality-ms .quality"
     category: null
