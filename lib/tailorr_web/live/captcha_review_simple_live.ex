@@ -3,8 +3,9 @@ defmodule TailorrWeb.CaptchaReviewSimpleLive do
   LiveView simple para revisar y catalogar CAPTCHAs desde archivos.
 
   Lee directamente del filesystem:
-  - priv/ml/captcha_learning/failed/*.jpg
-  - priv/ml/captcha_learning/success/*_SOLUTION.jpg
+  - priv/static/ml/captchas/TRACKER/failed/*.jpg
+  - priv/static/ml/captchas/TRACKER/pending/*.jpg
+  - priv/static/ml/captchas/TRACKER/success/*_SOLUTION.jpg
   """
 
   use TailorrWeb, :live_view
@@ -25,11 +26,12 @@ defmodule TailorrWeb.CaptchaReviewSimpleLive do
           loading: false,
           trackers: trackers,
           selected_tracker: selected_tracker,
+          pending_examples: FileStorage.list_pending(selected_tracker),
           failed_examples: FileStorage.list_failed(selected_tracker),
           success_examples: FileStorage.list_success(selected_tracker),
           classified_examples: FileStorage.list_classified(selected_tracker),
           current_example: nil,
-          tab: "failed",
+          tab: "pending",
           stats: FileStorage.stats()
         )
 
@@ -43,6 +45,7 @@ defmodule TailorrWeb.CaptchaReviewSimpleLive do
   def handle_event("select_example", %{"filename" => filename, "tab" => tab}, socket) do
     example =
       case tab do
+        "pending" -> Enum.find(socket.assigns.pending_examples, &(&1.filename == filename))
         "failed" -> Enum.find(socket.assigns.failed_examples, &(&1.filename == filename))
         "success" -> Enum.find(socket.assigns.success_examples, &(&1.filename == filename))
         "classified" -> Enum.find(socket.assigns.classified_examples, &(&1.filename == filename))
@@ -196,6 +199,13 @@ defmodule TailorrWeb.CaptchaReviewSimpleLive do
                 <div class="border-b border-gray-200 flex">
                   <button
                     phx-click="change_tab"
+                    phx-value-tab="pending"
+                    class={tab_class(@tab == "pending")}
+                  >
+                    Pendientes (<%= length(@pending_examples) %>)
+                  </button>
+                  <button
+                    phx-click="change_tab"
                     phx-value-tab="failed"
                     class={tab_class(@tab == "failed")}
                   >
@@ -219,6 +229,12 @@ defmodule TailorrWeb.CaptchaReviewSimpleLive do
 
                 <!-- List -->
                 <div class="max-h-[600px] overflow-y-auto divide-y">
+                  <%= if @tab == "pending" do %>
+                    <%= for example <- @pending_examples do %>
+                      <.example_item example={example} tab="pending" current={@current_example} />
+                    <% end %>
+                  <% end %>
+
                   <%= if @tab == "failed" do %>
                     <%= for example <- @failed_examples do %>
                       <.example_item example={example} tab="failed" current={@current_example} />
@@ -358,7 +374,7 @@ defmodule TailorrWeb.CaptchaReviewSimpleLive do
         <!-- Image -->
         <div class="mb-6 border rounded-lg p-4 bg-gray-50">
           <img
-            src={"/ml/captcha_learning/#{path_segment(@tab)}/#{@example.filename}"}
+            src={"/ml/captchas/#{@example.tracker}/#{path_segment(@tab)}/#{@example.filename}"}
             alt="CAPTCHA"
             class="max-w-full h-auto mx-auto"
             onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'200\' height=\'100\'%3E%3Ctext x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dy=\'.3em\'%3ENo image%3C/text%3E%3C/svg%3E'"
@@ -454,6 +470,7 @@ defmodule TailorrWeb.CaptchaReviewSimpleLive do
     end
   end
 
+  defp path_segment("pending"), do: "pending"
   defp path_segment("failed"), do: "failed"
   defp path_segment("success"), do: "success"
   defp path_segment("classified"), do: "classified"
@@ -462,6 +479,7 @@ defmodule TailorrWeb.CaptchaReviewSimpleLive do
     tracker = socket.assigns[:selected_tracker]
 
     assign(socket,
+      pending_examples: FileStorage.list_pending(tracker),
       failed_examples: FileStorage.list_failed(tracker),
       success_examples: FileStorage.list_success(tracker),
       classified_examples: FileStorage.list_classified(tracker),

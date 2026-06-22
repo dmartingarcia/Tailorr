@@ -36,7 +36,7 @@ defmodule Tailorr.Captcha.FileStorage do
 
   require Logger
 
-  @default_base_dir "priv/ml/captcha_learning"
+  @default_base_dir "priv/static/ml/captchas"
   @dirs %{
     success: "success",
     failed: "failed",
@@ -106,6 +106,9 @@ defmodule Tailorr.Captcha.FileStorage do
   def save_success(captcha_data, solution, tracker, metadata \\ %{}) do
     init(tracker)
 
+    image_hash = compute_image_hash(captcha_data)
+    metadata = if image_hash, do: Map.put(metadata, :image_hash, image_hash), else: metadata
+
     uuid = generate_uuid()
     safe_solution = sanitize_filename(solution)
     filename = "#{uuid}_#{safe_solution}.jpg"
@@ -124,7 +127,7 @@ defmodule Tailorr.Captcha.FileStorage do
       save_metadata(filepath, metadata_with_tracker)
     end
 
-    Logger.info("✅ [#{tracker}] Saved success: #{filename}")
+    Logger.info("[#{tracker}] Saved success: #{filename}")
     {:ok, filepath}
   end
 
@@ -370,6 +373,65 @@ defmodule Tailorr.Captcha.FileStorage do
   end
 
   @doc """
+  Look up a previously solved CAPTCHA by image hash.
+  Returns {:ok, solution} if found, :miss otherwise.
+  """
+  def lookup_cache(captcha_data) do
+    case compute_image_hash(captcha_data) do
+      nil ->
+        :miss
+
+      image_hash ->
+        list_success()
+        |> Enum.find_value(:miss, fn item ->
+          if Map.get(item.metadata, :image_hash) == image_hash and item.solution != nil do
+            {:ok, item.solution}
+          else
+            false
+          end
+        end)
+    end
+  end
+
+  @doc """
+  Lista archivos pendientes de revision.
+  """
+  def list_pending(tracker \\ nil) do
+    if tracker do
+      list_pending_for_tracker(tracker)
+    else
+      list_trackers()
+      |> Enum.flat_map(&list_pending_for_tracker/1)
+    end
+  end
+
+  defp list_pending_for_tracker(tracker) do
+    tracker_base = Path.join(base_dir(), sanitize_tracker(tracker))
+    pending_dir = Path.join(tracker_base, @dirs.pending)
+
+    if File.exists?(pending_dir) do
+      File.ls!(pending_dir)
+      |> Enum.filter(&String.ends_with?(&1, ".jpg"))
+      |> Enum.map(fn filename ->
+        filepath = Path.join(pending_dir, filename)
+        metadata = load_metadata(filepath)
+
+        %{
+          tracker: tracker,
+          filename: filename,
+          uuid: extract_uuid(filename),
+          path: filepath,
+          metadata: metadata,
+          inserted_at: file_mtime(filepath)
+        }
+      end)
+      |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
+    else
+      []
+    end
+  end
+
+  @doc """
   Exporta datos de entrenamiento en formato estándar.
 
   Genera labels.txt con formato: filename TAB solution
@@ -504,6 +566,13 @@ defmodule Tailorr.Captcha.FileStorage do
     tracker
     |> String.replace(~r/[^\w\d\-\.]/, "_")
     |> String.downcase()
+  end
+
+  defp compute_image_hash(captcha_data) do
+    binary = get_image_binary(captcha_data)
+    :crypto.hash(:sha256, binary) |> Base.encode16(case: :lower)
+  rescue
+    _ -> nil
   end
 
   defp get_image_binary(%{image_type: :url, image: url}) do
