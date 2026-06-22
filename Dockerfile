@@ -40,18 +40,18 @@ RUN mix compile
 FROM elixir:1.20-alpine AS dev
 
 RUN apk add --no-cache \
-    libstdc++ ncurses-libs bash inotify-tools nodejs npm \
+    libstdc++ ncurses-libs bash git inotify-tools nodejs npm \
     tesseract-ocr tesseract-ocr-data-eng \
     imagemagick
 
 WORKDIR /app
 
-# Install hex + rebar
-RUN mix local.hex --force && \
-    mix local.rebar --force
-
 ENV MIX_ENV=dev
+
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 4000
 
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["mix", "phx.server"]
