@@ -7,24 +7,27 @@ categories:
   - movies
   - tv
 
-enabled: false
-agent: http
+enabled: true
+
+agent: cloudflare
 base_url: "https://wolfmax4k.com"
-search_path: "/"
+search_path: "/buscar/{query}"
+max_timeout_ms: 60000
+
 search_params:
-  query_key: "s"
+  query_key: null
 
 parsing:
-  result_rows: ".movie-item, .torrent-item, .result"
+  result_rows: "#resDetalle .col-lg-2"
   fields:
-    title: ".title a, h2 a"
-    detail_url: ".title a@href, h2 a@href"
-    quality: ".quality, .calidad"
-    category: ".category, .categoria"
-    size: ".size, .tam"
+    title: ".card-body .title"
+    detail_url: "a.card-movie@href"
+    quality: ".quality-ms .quality"
+    category: null
+    size: null
     size_format: human
-    seeders: ".seeds"
-    leechers: ".leechers"
+    seeders: null
+    leechers: null
     download_url: null
     magnet_url: null
 
@@ -32,12 +35,5 @@ cache:
   ttl_minutes: 20
 
 rate_limit:
-  requests_per_minute: 10
-  delay_between_requests_ms: 2000
-
-notes: |
-  WolfMax4K - Requiere Cloudflare WARP para acceder
-  Status: Geo-bloqueado o requiere VPN
-  Dominio oficial: wolfmax4k.com
-  Solución: Usar Cloudflare WARP (https://one.one.one.one)
-  All selectors are estimates - needs validation with WARP access
+  requests_per_minute: 5
+  delay_between_requests_ms: 3000

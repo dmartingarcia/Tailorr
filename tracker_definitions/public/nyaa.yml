@@ -9,6 +9,7 @@ categories:
   - music    # anime soundtracks
   - books    # manga, light novels
 
+enabled: true
 agent: http
 base_url: "https://nyaa.si"
 search_path: "/"

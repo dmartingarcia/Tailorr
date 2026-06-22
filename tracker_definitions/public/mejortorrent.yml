@@ -6,94 +6,150 @@ type: public
 categories:
   - movies
   - tv
+  - music
 
-agent: http
+agent: cloudflare
 base_url: "https://www43.mejortorrent.eu"
-search_path: "/"
-max_timeout_ms: 60000
+search_path: "/busqueda/page/1"
+max_timeout_ms: 90000
 session_ttl_minutes: 30
-
-# NOTE: Selectors below are initial estimates based on common Spanish tracker patterns
-# Must be validated and adjusted via testing with: make test-tracker TRACKER=mejortorrent
 enabled: true
 
+# Search uses query param "q"; non-word chars are treated as separators server-side.
+# URI.encode_query encodes spaces as "+" which the server accepts.
 search_params:
-  query_key: "s"
-  extra_params:
-    search: "1"
+  query_key: "q"
 
 parsing:
-  # Common patterns for Spanish torrent sites - needs validation
-  result_rows: ".list-group-item, .torrent-list tr, .movie-item"
+  # Search results page: /busqueda/page/1?q=QUERY
+  #
+  # Container: <div class="w-11/12"> … </div>
+  # Note: Floki does not support the escaped CSS selector ".w-11\/12" — use
+  # the CSS attribute selector [class~="w-11/12"] instead, which matches any
+  # element whose class list includes the token "w-11/12".
+  #
+  # Row structure (each direct child of the container):
+  #   <div class="flex-row">
+  #     <a href="/pelicula/123/title-slug">      ← detail URL + title text
+  #       <div>
+  #         <span>Quality</span>                 ← quality badge (inside title)
+  #         Title text
+  #       </div>
+  #     </a>
+  #     <div>Película</div>                      ← category text
+  #   </div>
+  #
+  # Newest torrents page (/torrents) has a different layout:
+  #   container: .gap-y-3 > div:first-child > div:first-child
+  #   rows: children of that container
+  #   row[0] = date, row[1] href + title
+  # This YAML only targets the search endpoint.
+  result_rows: "[class~=\"w-11/12\"] > div"
   fields:
-    title: ".title a, h3 a, .name a"
-    download_url: ".download a@href, a.torrent@href"
-    magnet_url: ".magnet@href, a[href^='magnet:']@href"
-    size: ".size, .filesize, td:contains('GB')"
-    size_format: human
-    seeders: ".seeders, .seeds, td.seeds"
-    leechers: ".leechers, .peers, td.peers"
-    date: ".date, .upload-date, time"
-    category: ".category, .cat, .badge"
+    title: "a"
+    detail_url: "a@href"
 
-  # May require detail page for actual download links
-  detail_page:
-    enabled: false  # Enable if search results don't include download links
-    url_selector: ".title a@href, h3 a@href"
-    magnet_selector: "a[href^='magnet:']@href"
-    download_selector: "a.download-torrent@href, a.btn-download@href"
+    # Size, seeders, leechers, and magnet are not present in search results.
+    # The download .torrent link is only on the detail page (see notes below).
+    download_url: null
+    magnet_url: null
+    size: null
+    seeders: null
+    leechers: null
+    date: null
+
+    # Category text is in the second child div of each row.
+    # Selector: div elements inside the row; last one is the category.
+    category: "div:last-child"
 
 cache:
   ttl_minutes: 20
 
 rate_limit:
-  requests_per_minute: 10
-  delay_between_requests_ms: 2000
+  requests_per_minute: 8
+  delay_between_requests_ms: 3000
 
 notes: |
-  MejorTorrent initial tracker definition - REQUIRES VALIDATION
+  MejorTorrent — SELECTORS BASED ON JACKETT SOURCE (HTML NOT DIRECTLY VERIFIED)
 
-  === VALIDATION NEEDED ===
+  === DOMAIN ===
 
-  1. SITE ACCESS:
-     - Got 403 Forbidden on initial WebFetch attempt
-     - Likely has Cloudflare protection (hence cloudflare agent)
-     - May need session cookies or specific headers
-     - Test with: make test-tracker TRACKER=mejortorrent
+  Current: www43.mejortorrent.eu (Cloudflare managed challenge — requires FlareSolverr)
+  The site increments the subdomain on takedowns (www27, www28 ... www43).
+  Monitor and update base_url when the current subdomain stops working.
 
-  2. SEARCH URL PATTERN:
-     - Assumed query param 's' based on common patterns
-     - May use different parameter name or path-based search
-     - Verify actual search URL format when site is accessible
+  Legacy mirrors (from Jackett LegacySiteLinks):
+    www27 through www42.mejortorrent.eu
 
-  3. HTML SELECTORS:
-     - All selectors are GUESSES based on common Spanish tracker patterns
-     - Multiple fallback selectors provided (.title a, h3 a, .name a)
-     - MUST be updated after inspecting actual HTML structure
+  === SEARCH URL ===
 
-  4. DOWNLOAD LINKS:
-     - Unknown if magnet/download links are in search results or detail pages
-     - detail_page section prepared but disabled
-     - Enable if links require visiting individual torrent pages
+  Pattern: {base_url}/busqueda/page/{n}?q={query}
+  Page numbers start at 1. Jackett searches up to 3 pages.
+  Spaces in query: Jackett replaces \W+ with "%", standard URL encoding uses "+"
+  or "%20". The server appears to accept both forms.
 
-  === TESTING STEPS ===
+  === HTML STRUCTURE (search results page) ===
 
-  1. Run: make test-tracker TRACKER=mejortorrent
-  2. Inspect FlareSolverr logs to verify CF bypass works
-  3. Check returned HTML structure and update selectors
-  4. Verify search query parameter name
-  5. Determine if detail_page fetching is needed
-  6. Update categories if site has more specific ones
-  7. Set enabled: true when all selectors validated
+  Source: Jackett Indexers/Definitions/MejorTorrent.cs (confirmed working as of 2025)
+  CSS framework: Tailwind CSS (utility classes like w-11/12, flex-row, gap-y-3, ml-2)
 
-  === ALTERNATIVE MIRRORS ===
+  Results container:
+    <div class="w-11/12">          ← NOT selectable with .w-11\/12 in Floki
+      <div class="flex-row">       ← one per result
+        <a href="/pelicula/123/slug">
+          <div>
+            <span>Quality</span>
+            Title text
+          </div>
+        </a>
+        <div>Película</div>        ← category
+      </div>
+      ...
+    </div>
 
-  MejorTorrent frequently changes domains due to takedowns.
-  Current: www43.mejortorrent.eu
-  Monitor for domain changes and update base_url accordingly.
+  Floki cannot escape "/" in CSS class names. Use [class~="w-11/12"] instead.
 
-  === KNOWN LIMITATIONS ===
+  === DETAIL PAGES (download links) ===
 
-  - Domain instability requires periodic base_url updates
-  - Cloudflare challenges may increase response times
-  - Rate limiting conservative until site behavior verified
+  Download links are NOT available in search results — they are on detail pages only.
+
+  Detail page URL patterns:
+    /pelicula/{id}/{slug}    ← movie
+    /serie/{id}/{slug}       ← TV series season
+    /musica/{id}/{slug}      ← music
+
+  Movie detail page:
+    Download link: <a class="ml-2" href="/download/..."> (selector: .ml-2@href)
+
+  Series detail page:
+    Episode rows: tr.border
+      row.Children[1] = episode title
+      row.Children[2] = publish date
+      row.Children.Last().Children[0] = download link href
+
+  === DOWNLOADER MODULE NEEDED ===
+
+  To resolve download URLs, a Tailorr.Downloaders.MejorTorrent module is required.
+  This module must:
+  1. Detect whether the detail URL is a movie or series (/pelicula vs /serie)
+  2. For movies: fetch detail page via FlareSolverr (CF-protected), extract .ml-2 href
+  3. For series: fetch detail page via FlareSolverr, parse tr.border rows,
+     return each episode as a separate result with its download URL
+  4. Register "mejortorrent" in the @downloaders map in lib/tailorr/scraper.ex
+
+  Fetching detail pages via FlareSolverr requires the cloudflare agent or
+  equivalent HTTP calls through the FlareSolverr v1 API.
+
+  Until the downloader module exists, results will have detail_url populated
+  but download_url will be nil. Sonarr/Radarr will not be able to download.
+
+  === QUALITY / CATEGORY MAPPING ===
+
+  Categories returned by the site:
+    "Película"   → movies
+    "Serie"      → TV (SD)
+    "SerieHD"    → TV (HD) — inferred from title containing 720p/1080p
+    "Música"     → music
+    "Otro"       → other (Jackett skips these)
+
+  Quality tags in titles: DVDRip, BluRay, 1080p, 720p, 4K, etc.

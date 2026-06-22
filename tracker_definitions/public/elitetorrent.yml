@@ -7,43 +7,47 @@ categories:
   - movies
   - tv
 
-# NOTE: Domain frequently changes - verify current working mirror
-enabled: false
+enabled: true
 
 agent: http
-base_url: "https://www.elitetorrent.wf"  # TODO: Update with working mirror
-search_method: GET
+base_url: "https://www.elitetorrent.com"
 search_path: "/"
+search_method: GET
+
+headers:
+  User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 search_params:
   query_key: "s"
 
 parsing:
-  # NOTE: Selectors are estimates based on common Spanish tracker patterns
-  # Must be validated with actual HTML structure when site is accessible
-  result_rows: ".fichas-listado .ficha-list, .content-item, tr.lista2"
+  # Each <li> inside the .miniboxs-ficha list is one result
+  result_rows: "ul.miniboxs-ficha li"
   fields:
-    title: ".titulo a, h2 a, .title a"
-    detail_url: ".titulo a@href, h2 a@href, .title a@href"
-    quality: ".calidad, .quality, .version"
-    category: ".categoria, .category"
+    title: "a.nombre"
+    detail_url: "a.nombre@href"
 
-    # May not be available in search results
-    size: ".tam, .size, .filesize"
+    # Size shown in the .voto1 box (e.g. "1.35GB")
+    size: ".voto1 .dig1"
     size_format: human
-    seeders: ".seeds, .seeders"
-    leechers: ".peers, .leechers"
 
-    # Download links usually require visiting detail page
+    # Quality shown in the second .marca.estreno badge (the first is language flag)
+    quality: ".marca.estreno i"
+
+    # No seeders/leechers exposed in search results
+    seeders: null
+    leechers: null
+
+    # Direct torrent links require visiting the detail page
     download_url: null
     magnet_url: null
 
-  # Detail page likely needed for download links
   detail_page:
-    enabled: false  # Enable after validating selectors
-    url_selector: ".titulo a@href, h2 a@href"
+    enabled: true
+    url_selector: "a.nombre@href"
+    # Download link is inside .enlace_torrent and goes via a link shortener
+    download_selector: "a.enlace_torrent@href"
     magnet_selector: "a[href^='magnet:']@href"
-    download_selector: ".descargar a@href, .download-btn@href"
 
 cache:
   ttl_minutes: 20
@@ -53,46 +57,22 @@ rate_limit:
   delay_between_requests_ms: 2000
 
 notes: |
-  EliteTorrent - Spanish tracker definition (PENDING VALIDATION)
+  EliteTorrent — validated 2026-06-22
 
-  === CURRENT STATUS ===
+  Working domain: www.elitetorrent.com (WordPress-based site)
+  Previously tested dead domains: elitetorrent.wf, elitetorrent.nz (410), elitetorrent.eu (403)
 
-  - Domain www.elitetorrent.wf is NOT reachable
-  - Need to find current working mirror/domain
-  - All selectors are estimates and need validation
+  Search: GET https://www.elitetorrent.com/?s={query}
+  Results rendered server-side in <ul class="miniboxs-ficha"> — no JS required.
 
-  === KNOWN CHARACTERISTICS ===
+  Fields available in search results:
+  - title (a.nombre)
+  - detail_url (a.nombre@href)
+  - size (.voto1 .dig1, e.g. "1.35GB")
+  - quality (.marca.estreno i — the second badge; the first badge is language)
 
-  EliteTorrent is a popular Spanish tracker known for:
-  - Frequent domain changes due to takedowns
-  - Good selection of Spanish-dubbed content
-  - Series (especially ongoing shows)
-  - Movies (recent releases)
+  Download link: only on detail page, via a.enlace_torrent — this is a redirect
+  through a link shortener (acortame-esto.com / enlacito.com), not a direct .torrent URL.
+  Sonarr/Radarr should follow the redirect to get the actual .torrent file.
 
-  === COMMON DOMAIN PATTERNS ===
-
-  EliteTorrent historically uses domains like:
-  - elitetorrent.wf
-  - elitetorrent.li
-  - elitetorrent.io
-  - elitetorrent.net
-  - Various numbered mirrors (elitetorrent1.com, etc.)
-
-  === VALIDATION NEEDED ===
-
-  1. Find current working domain/mirror
-  2. Test for Cloudflare protection (may need cloudflare agent)
-  3. Inspect actual HTML structure
-  4. Validate/update all CSS selectors
-  5. Determine if detail page fetching is needed
-  6. Check search URL pattern (query param may differ)
-  7. Test pagination if implemented
-
-  === TODO ===
-
-  - [ ] Find working mirror URL
-  - [ ] Test basic connectivity
-  - [ ] Fetch search results HTML
-  - [ ] Update selectors based on real structure
-  - [ ] Validate download link location
-  - [ ] Set enabled: true after validation
+  No seeders or leechers are available anywhere on this site.

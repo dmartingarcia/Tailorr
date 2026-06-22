@@ -1,6 +1,6 @@
 id: "1337x"
 name: "1337x"
-description: "General-purpose public torrent tracker with CF protection"
+description: "General-purpose public torrent tracker (via 1377x.to mirror)"
 language: en
 type: public
 categories:
@@ -10,43 +10,51 @@ categories:
   - games
   - software
 
-agent: cloudflare
-base_url: "https://1337x.to"
+enabled: true
+agent: http
+base_url: "https://www.1377x.to"
 search_path: "/search/{query}/1/"
-max_timeout_ms: 60000
-session_ttl_minutes: 30
+max_timeout_ms: 30000
 
-# 1337x uses path-based search, not query params
-# The {query} placeholder is replaced by the URL-encoded search term
+# 1377x.to is the canonical CF-free mirror of 1337x.to. The original
+# 1337x.to domain now runs Cloudflare managed challenges (turnstile) that
+# FlareSolverr v3.5.0 cannot bypass. 1377x.to serves identical content
+# over plain HTTP with no bot protection.
+#
+# query_key: null — the search term goes into the path via {query}, not a
+# query string param. build_url() in http.ex substitutes {query} in the path.
 search_params:
-  query_in_path: true
-  path_template: "/search/{query}/1/"
+  query_key: null
+
+headers:
+  User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 parsing:
   result_rows: "table.table-list tbody tr"
   fields:
-    title: "td.name a:nth-child(2)"
-    download_url: null           # requires visiting detail page — see notes
-    magnet_url: null             # same
-    size: "td.size"
+    title: "td.coll-1.name a:not(.icon)"
+    detail_url: "td.coll-1.name a:not(.icon)@href"
+    download_url: null
+    magnet_url: null
+    size: "td.coll-4.size"
     size_format: human
-    seeders: "td.seeds"
-    leechers: "td.leeches"
-    date: "td.date"
-  detail_page:
-    enabled: true
-    url_selector: "td.name a:nth-child(2)@href"
-    magnet_selector: "a.magnet-button@href"
-    download_selector: "a.download-button@href"
+    seeders: "td.coll-2.seeds"
+    leechers: "td.coll-3.leeches"
+    date: "td.coll-date"
+
+# Magnet links are on the detail page only. The Leet downloader fetches
+# each detail page and extracts `a.torrentdown1[href^="magnet:"]`.
+downloader: leet
 
 cache:
   ttl_minutes: 20
 
 rate_limit:
-  requests_per_minute: 10
-  delay_between_requests_ms: 2000
+  requests_per_minute: 15
+  delay_between_requests_ms: 1000
 
 notes: >
-  1337x requires visiting each result's detail page to get the magnet/download link.
-  The detail_page block handles this automatically but doubles the request count.
-  Consider filtering results before fetching detail pages (e.g. seeders > 0).
+  1337x.to upgraded to Cloudflare managed challenges (turnstile) in mid-2026,
+  which FlareSolverr 3.5.0 cannot bypass. 1377x.to is a CF-free mirror with
+  identical HTML structure. Magnet links require a detail page fetch handled
+  by Tailorr.Downloaders.Leet (registered as "leet" in scraper.ex).
