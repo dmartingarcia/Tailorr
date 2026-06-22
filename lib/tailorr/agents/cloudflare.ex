@@ -111,9 +111,24 @@ defmodule Tailorr.Agents.Cloudflare do
 
   defp build_search_url(config, query) do
     base = config["base_url"]
-    path = config["search_path"] || "/search"
+    raw_path = config["search_path"] || "/search"
+
+    # Replace {query} placeholder in path if present (path-based search)
+    path =
+      if String.contains?(raw_path, "{query}") do
+        String.replace(raw_path, "{query}", URI.encode(query.query))
+      else
+        raw_path
+      end
+
     params = SearchQuery.to_params(query, config)
-    "#{base}#{path}?#{URI.encode_query(params)}"
+    encoded = URI.encode_query(params)
+
+    if encoded == "" do
+      "#{base}#{path}"
+    else
+      "#{base}#{path}?#{encoded}"
+    end
   end
 
   defp flaresolverr_url(config) do

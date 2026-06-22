@@ -56,10 +56,17 @@ defmodule Tailorr.SearchQuery do
   """
   def to_params(%__MODULE__{} = query, config) do
     search_params = config["search_params"] || %{}
-    query_key = search_params["query_key"] || "q"
     extra_params = search_params["extra_params"] || %{}
 
-    base = %{query_key => query.query}
+    # query_key: null means the query is embedded in the path via {query} placeholder;
+    # do not add it as a query string parameter.
+    base =
+      case Map.get(search_params, "query_key", "q") do
+        nil -> %{}
+        "" -> %{}
+        key -> %{key => query.query}
+      end
+
     Map.merge(base, extra_params)
   end
 

@@ -106,8 +106,16 @@ defmodule Tailorr.Agents.Http do
 
       case Req.get(req, url: base_url) do
         {:ok, response} ->
-          # Return the request from the response to preserve cookies
-          response.private.req_request
+          cookies =
+            Req.Response.get_header(response, "set-cookie")
+            |> Enum.map(&(String.split(&1, ";") |> List.first()))
+            |> Enum.join("; ")
+
+          if cookies != "" do
+            Req.merge(req, headers: %{"cookie" => cookies})
+          else
+            req
+          end
 
         {:error, _} ->
           req
@@ -136,9 +144,24 @@ defmodule Tailorr.Agents.Http do
 
   defp build_url(config, query) do
     base = config["base_url"]
-    path = config["search_path"] || "/search"
+    raw_path = config["search_path"] || "/search"
+
+    # Replace {query} placeholder in path if present (path-based search)
+    path =
+      if String.contains?(raw_path, "{query}") do
+        String.replace(raw_path, "{query}", URI.encode(query.query))
+      else
+        raw_path
+      end
+
     params = SearchQuery.to_params(query, config)
-    "#{base}#{path}?#{URI.encode_query(params)}"
+    encoded = URI.encode_query(params)
+
+    if encoded == "" do
+      "#{base}#{path}"
+    else
+      "#{base}#{path}?#{encoded}"
+    end
   end
 
   defp build_headers(config) do
