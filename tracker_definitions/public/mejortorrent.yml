@@ -9,21 +9,15 @@ categories:
   - music
 
 agent: cloudflare
+# Routes through stealth-solver (playwright-extra + stealth plugin) instead of
+# standard FlareSolverr — required because www43 uses Cloudflare Turnstile
+# (managed challenge) which FlareSolverr v3 cannot bypass.
+flaresolverr_url: "http://stealth-solver:3002"
 base_url: "https://www43.mejortorrent.eu"
 search_path: "/busqueda/page/1"
 max_timeout_ms: 90000
 session_ttl_minutes: 30
-
-# Disabled: www43.mejortorrent.eu now serves a Cloudflare Turnstile challenge
-# ("Just a moment..." with nonce + challenges.cloudflare.com) which FlareSolverr
-# v3 cannot bypass (confirmed 90 s timeout). No working mirror found as of 2026-06:
-#   www44–www55.mejortorrent.eu  → ECONNREFUSED (do not exist)
-#   mejortorrent.com/mejortorrent1.net → ad/redirect traps
-#   mejortorrent.wtf             → same Turnstile challenge
-#   mejortorrent.eu/wf/net/zip   → ECONNREFUSED
-# Jackett (as of the same date) is also still pointing at www43 — no upgrade.
-# Re-enable once a bypass for Turnstile is available or a new mirror appears.
-enabled: false
+enabled: true
 
 # Search uses query param "q"; non-word chars are treated as separators server-side.
 # URI.encode_query encodes spaces as "+" which the server accepts.
