@@ -90,6 +90,10 @@ defmodule TailorrWeb.TorznabController do
         Logger.debug("Tracker #{tracker_id}: #{length(results)} results")
         results
 
+      {:error, :circuit_open} ->
+        Logger.info("Tracker #{tracker_id}: circuit open, skipped")
+        []
+
       {:error, reason} ->
         Logger.warning("Tracker #{tracker_id} failed: #{inspect(reason)}")
         []

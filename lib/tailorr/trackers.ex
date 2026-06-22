@@ -129,6 +129,15 @@ defmodule Tailorr.Trackers do
     :exit, {:noproc, _} -> {:error, :tracker_not_found}
   end
 
+  @doc """
+  Manually reset the circuit breaker for a tracker to :closed state.
+  """
+  def reset_circuit(tracker_id) do
+    Tracker.reset_circuit(tracker_id)
+  catch
+    :exit, {:noproc, _} -> {:error, :tracker_not_found}
+  end
+
   # Private helpers
 
   defp get_tracker_info(tracker_id) do
@@ -140,7 +149,11 @@ defmodule Tailorr.Trackers do
           agent: status.config["agent"] || "http",
           enabled: status.config["enabled"] != false,
           last_search_at: status.last_search_at,
-          failure_count: status.failure_count
+          failure_count: status.failure_count,
+          circuit_state: status.circuit_state,
+          circuit_opened_at: status.circuit_opened_at,
+          circuit_threshold: status.circuit_threshold,
+          circuit_reset_ms: status.circuit_reset_ms
         }
 
       {:error, _} ->
