@@ -67,12 +67,13 @@ defmodule TailorrWeb.TorznabController do
       # Create search query
       query = %SearchQuery{query: query_text}
 
-      # Search all selected trackers
+      # Search all selected trackers — Torznab requires actual download/magnet links
       results =
         tracker_ids
         |> Enum.flat_map(fn tracker_id ->
           search_tracker(tracker_id, query)
         end)
+        |> Enum.filter(fn r -> r.download_url != nil or r.magnet_url != nil end)
         |> Enum.take(String.to_integer(limit))
 
       # Build Torznab XML
