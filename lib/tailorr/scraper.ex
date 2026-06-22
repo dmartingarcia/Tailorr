@@ -10,7 +10,17 @@ defmodule Tailorr.Scraper do
   - Size/date parsing and normalization
   """
 
-  alias Tailorr.{Downloaders, Normalizer, Result}
+  alias Tailorr.{Normalizer, Result}
+
+  require Logger
+
+  # Registry: downloader name declared in YAML → implementing module.
+  # Add one line here when a new Downloaders.Behaviour module is created.
+  @downloaders %{
+    "dontorrent" => Tailorr.Downloaders.DonTorrent,
+    "descargamix" => Tailorr.Downloaders.DescargaMix,
+    "leet" => Tailorr.Downloaders.Leet
+  }
 
   @doc """
   Parse HTML and extract results according to tracker config.
@@ -26,6 +36,16 @@ defmodule Tailorr.Scraper do
            Enum.map(result_nodes, &parse_result(&1, parsing_config, tracker_id, base_url)) do
       results
       |> Enum.filter(&Result.valid?/1)
+      |> Task.async_stream(
+        &maybe_expand_result(&1, config),
+        timeout: 25_000,
+        max_concurrency: 2,
+        on_timeout: :kill_task
+      )
+      |> Enum.flat_map(fn
+        {:ok, expanded} -> expanded
+        {:exit, _} -> []
+      end)
     else
       {:error, _reason} -> []
     end
@@ -57,33 +77,63 @@ defmodule Tailorr.Scraper do
       quality: extract_field(node, fields["quality"])
     }
 
-    result = Result.new(attrs)
-
-    # Fetch download URL for trackers that need it (e.g., DonTorrent with POW)
-    result = maybe_fetch_download_url(result, tracker_id, base_url, config)
-
-    result
+    Result.new(attrs)
   end
 
-  # Fetch download URL for trackers with protected downloads
-  defp maybe_fetch_download_url(result, "dontorrent", base_url, _config) do
-    # Only fetch if we have detail_url but no download_url
-    if result.detail_url && !result.download_url do
-      case Downloaders.DonTorrent.get_download_url(result.detail_url, base_url) do
-        {:ok, download_url} ->
-          %{result | download_url: download_url}
+  # Dispatch to a tracker-declared downloader module (config["downloader"]).
+  # Trackers that don't declare a downloader pass through unchanged.
+  defp maybe_expand_result(result, config) do
+    base_url = config["base_url"]
+    season_pattern = config["season_url_pattern"]
+    downloader = Map.get(@downloaders, config["downloader"])
 
-        {:error, reason} ->
-          require Logger
-          Logger.warning("Failed to get DonTorrent download URL: #{inspect(reason)}")
-          result
-      end
-    else
-      result
+    cond do
+      downloader && season_pattern && result.detail_url &&
+          String.contains?(result.detail_url, season_pattern) ->
+        case downloader.expand_season(result.detail_url, base_url) do
+          {:ok, []} ->
+            [result]
+
+          {:ok, episodes} ->
+            Enum.map(episodes, &episode_to_result(&1, result))
+
+          {:error, reason} ->
+            Logger.warning(
+              "#{config["id"]}: Failed to expand season #{result.detail_url}: #{inspect(reason)}"
+            )
+
+            [result]
+        end
+
+      downloader && is_nil(result.download_url) && not is_nil(result.detail_url) ->
+        case downloader.get_download_url(result.detail_url, base_url) do
+          {:ok, download_url} ->
+            [%{result | download_url: download_url}]
+
+          {:error, reason} ->
+            Logger.warning(
+              "#{config["id"]}: Failed to get download URL #{result.detail_url}: #{inspect(reason)}"
+            )
+
+            [result]
+        end
+
+      true ->
+        [result]
     end
   end
 
-  defp maybe_fetch_download_url(result, _tracker_id, _base_url, _config), do: result
+  defp episode_to_result(ep, parent) do
+    Result.new(%{
+      tracker_id: parent.tracker_id,
+      title: "#{parent.title} - #{ep.episode_title}",
+      detail_url: parent.detail_url,
+      download_url: ep.download_url,
+      quality: parent.quality,
+      category: parent.category,
+      published_at: ep.published_at
+    })
+  end
 
   defp extract_field(_node, nil), do: nil
 
