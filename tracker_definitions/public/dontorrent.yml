@@ -14,6 +14,8 @@ enabled: true
 
 agent: http
 base_url: "https://9386-don.mirror.pm"
+downloader: dontorrent
+season_url_pattern: "/serie/"
 driver: flaresolverr
 wait_for_selector: ".card-body"
 max_timeout_ms: 60000

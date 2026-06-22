@@ -1,6 +1,6 @@
 id: descargamix
 name: "DescargaMix"
-description: "Spanish public torrent tracker"
+description: "Spanish public torrent tracker (DonTorrent mirror with direct .torrent links)"
 language: es
 type: public
 categories:
@@ -9,8 +9,10 @@ categories:
 
 enabled: true
 agent: http
-needs_cookies: true
+needs_cookies: false
 base_url: "https://descargamix.net"
+downloader: descargamix
+season_url_pattern: "/serie/"
 search_path: "/"
 search_params:
   query_key: "valor"
@@ -18,17 +20,25 @@ search_params:
     sec: "buscador"
     Buscar: "Buscar"
 
+# Referer is required — without it the server returns "Necesitas utilizar el buscador."
+headers:
+  Referer: "https://descargamix.net/"
+
 parsing:
-  # Same structure as DonTorrent (appears to be a mirror/proxy)
-  result_rows: "p"
+  # Results are <p> elements inside .card-body (identical structure to DonTorrent)
+  result_rows: ".card-body p"
   fields:
+    # Structure: <p><span><a href='/pelicula/ID/title' class="text-decoration-none">Title</a> <span>(Quality)</span></span><span class="badge badge-primary float-right">Category</span></p>
     title: "span a.text-decoration-none"
     detail_url: "span a.text-decoration-none@href"
     quality: "span > span"
     category: "span.badge.badge-primary.float-right"
+
+    # Not available in search results — resolved by expand_result from detail pages
     size: null
     seeders: null
     leechers: null
+    date: null
     download_url: null
     magnet_url: null
 
@@ -40,14 +50,21 @@ rate_limit:
   delay_between_requests_ms: 2000
 
 notes: |
-  DescargaMix - DonTorrent mirror/proxy
+  DescargaMix - DonTorrent mirror with direct .torrent download links
 
   Search: GET /?sec=buscador&valor=QUERY&Buscar=Buscar
-  Requires: Session cookies (fetch homepage first)
+  Requires: Referer: https://descargamix.net/ header (no cookies needed)
 
-  Structure: Identical to DonTorrent
-  - Same URLs: /pelicula/ID/title
-  - Same HTML selectors
-  - Likely uses same POW protection for downloads
+  HTML structure is identical to DonTorrent:
+  - Search results: <p> elements inside .card-body
+  - Movie URLs: /pelicula/ID/title
+  - Series URLs: /serie/SERIES_ID/EPISODE_ID/title
+  - Documental URLs: /documental/ID/title
 
-  Download handling: Use DonTorrent downloader (same structure)
+  Download system (different from DonTorrent):
+  - NO Proof-of-Work challenge system
+  - Movie detail pages: direct <a download href='//descargamix.net/torrents/peliculas/....torrent'>
+  - Series detail pages: <tbody><tr> rows with episode title, direct download link, and date
+  - URLs are protocol-relative (//descargamix.net/...) → resolved to https://
+
+  Handled by: Tailorr.Downloaders.DescargaMix and Tailorr.Scraper.maybe_expand_result/3
