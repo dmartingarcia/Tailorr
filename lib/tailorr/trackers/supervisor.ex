@@ -69,11 +69,10 @@ defmodule Tailorr.Trackers.Supervisor do
   end
 
   @doc """
-  List all running trackers.
+  List all running tracker IDs.
   """
   def list_trackers do
-    DynamicSupervisor.which_children(__MODULE__)
-    |> Enum.map(fn {_, pid, _, _} -> pid end)
+    Registry.select(Tailorr.Trackers.Registry, [{{:"$1", :_, :_}, [], [:"$1"]}])
   end
 
   @impl true

@@ -49,8 +49,7 @@ defmodule Tailorr.Trackers do
   end
 
   def search(tracker_id, %SearchQuery{} = query) do
-    results = Tracker.search(tracker_id, query)
-    {:ok, results}
+    Tracker.search(tracker_id, query)
   catch
     :exit, {:noproc, _} ->
       {:error, :tracker_not_found}
@@ -86,7 +85,8 @@ defmodule Tailorr.Trackers do
         end
       end,
       timeout: 30_000,
-      max_concurrency: 10
+      max_concurrency: 10,
+      on_timeout: :kill_task
     )
     |> Enum.flat_map(fn
       {:ok, results} -> results
